@@ -46,11 +46,13 @@ library
     exposed-modules: 
       PostgresExplainVisualizer
       PostgresExplainVisualizer.Database.Pool
+      PostgresExplainVisualizer.Database.Migrations
       PostgresExplainVisualizer.Effects.Database
       PostgresExplainVisualizer.Environment
       PostgresExplainVisualizer.Import
       PostgresExplainVisualizer.Server
       PostgresExplainVisualizer.Types
+      PostgresExplainVisualizer.Models.Plan
     build-depends:
       base >= 4.13 && <= 4.17
       , aeson
@@ -82,6 +84,7 @@ library
       , opaleye
       , profunctors
       , product-profunctors
+      , uuid
 
 
     hs-source-dirs:   src

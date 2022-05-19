@@ -27,10 +27,8 @@ data Routes route = Routes
   deriving stock (Generic)
 
 
-run :: IO ()
-run = do
-  config <-
-    getServerConfig
+run :: Config -> IO ()
+run config = do
   pool <- DB.initPool (configDatabaseUrl config)
   putStrLn $
     mconcat [
