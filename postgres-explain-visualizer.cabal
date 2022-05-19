@@ -47,32 +47,32 @@ library
       PostgresExplainVisualizer 
     build-depends:    
       base >= 4.13 && <= 4.17
+      , aeson
       , containers
       , time
       , bytestring
       , text
-      , optics
       , mtl
       
       , http-api-data
       , http-types
-      , lucid
+      , optparse-applicative
       , servant
-      , servant-lucid
       , servant-server
       , wai
       , wai-enforce-https
       , warp
-      , colourista
       , envparse
       -- alternative to interpolate 
       , PyF
-      --, raven-haskell -- client for sentry.io
-      --, text-display -- user-facing output
       , wai-logger
       , wai-middleware-static 
       -- from geocode.city
       , fused-effects
+      -- DB stuff:
+      , postgresql-simple
+      , postgresql-simple-migration
+      , resource-pool
       
 
     hs-source-dirs:   src

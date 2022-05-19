@@ -1,4 +1,4 @@
-{ sources ? import ./sources.nix, compiler ? "ghc8104", system ? builtins.currentSystem }:
+{ sources ? import ./sources.nix, compiler ? "ghc8107", system ? builtins.currentSystem }:
 
 let
   nixpkgs = import sources.nixpkgs { inherit config; overlay = [overlay]; system=system;};
