@@ -1,0 +1,80 @@
+cabal-version:      2.4
+name:               postgres-explain-visualizer
+version:            0.1.0.0
+
+synopsis: pev2, with a backend
+description: See README at <https://github.com/lfborjas/postgres-explain-visualizer>
+
+
+license-file: LICENSE
+
+author:             Luis Borjas Reyes
+maintainer:         hello@lfborjas.com
+bug-reports: https://github.com/lfborjas/postgres-explain-visualizer/issues
+
+
+extra-source-files: 
+LICENSE
+
+    README.md
+
+source-repository head
+    type: git
+    location: https://github.com/lfborjas/postgres-explain-visualizer
+
+
+-- Inspired by:
+-- https://github.com/tchoutri/pg-entity/blob/e5fc4cfe8fcaf2a5a6d76f983c9a60b25a57777a/pg-entity.cabal 
+common common-extensions
+    default-extensions:
+        DerivingStrategies
+        DerivingVia
+        DeriveGeneric
+        DataKinds
+        GeneralizedNewtypeDeriving
+        NamedFieldPuns
+        OverloadedStrings  
+        TypeOperators
+    default-language: Haskell2010
+
+common common-ghc-options
+    ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints
+
+library
+    import: common-extensions
+    import: common-ghc-options
+    exposed-modules: 
+      PostgresExplainVisualizer 
+    build-depends:    
+      base >= 4.13 && <= 4.17
+      , containers
+      , time
+      , bytestring
+      , text
+      , optics
+      , mtl
+      
+      , http-api-data
+      , http-types
+      , lucid
+      , servant
+      , servant-lucid
+      , servant-server
+      , wai
+      , wai-enforce-https
+      , warp
+      , colourista
+      , envparse
+      -- alternative to interpolate 
+      , PyF
+      --, raven-haskell -- client for sentry.io
+      --, text-display -- user-facing output
+      , wai-logger
+      , wai-middleware-static 
+      -- from geocode.city
+      , fused-effects
+      
+
+    hs-source-dirs:   src
+
+
