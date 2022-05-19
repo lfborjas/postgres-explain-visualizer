@@ -24,3 +24,5 @@ cabal.project.local~
 .ghc.environment.*
 
 .vscode
+/.direnv/
+/.envrc

@@ -1,0 +1,7 @@
+cradle:
+  cabal:
+    - path: "src"
+      component: "lib:postgres-explain-visualizer"
+
+    - path: "app"
+      component: "lib:postgres-explain-visualizer"

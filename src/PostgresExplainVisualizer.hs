@@ -1,4 +1,7 @@
+{-# LANGUAGE ImportQualifiedPost #-}
 module PostgresExplainVisualizer where
 
+import PostgresExplainVisualizer.Server qualified as Server
+
 run :: IO ()
-run = putStrLn "Hello, postgres-explain-visualizer"
+run = Server.run
