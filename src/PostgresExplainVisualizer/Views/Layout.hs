@@ -22,11 +22,9 @@ layout page = do
   html_ [lang_ "en"] $ do
     header
     body_ $ do
-      div_ [] $ do
-        header_ [class_ "navbar mt-2"] $ do
-          section_ [class_ "navbar-section"] $ do
-            a_ [href_ "/", class_ "navbar-brand mr-2"] "New Explain"
+      div_ [class_ "container-fluid"] $ do
         page
+        -- TODO: maybe add a footer?
 
 stylesheets :: Html ()
 stylesheets = do
