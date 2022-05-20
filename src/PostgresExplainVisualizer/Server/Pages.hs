@@ -48,8 +48,8 @@ showPlanHandler pid = do
   plan <- select $ planByID pid
   case listToMaybe plan of
     Nothing -> throwError $ err404 {errBody = "Plan doesn't exist"}
-    Just (_, pSource, pQuery) ->
-      renderView $ PEV2.page pSource pQuery
+    Just (_, pSource, pQuery, createdAt) ->
+      renderView $ PEV2.page pSource pQuery createdAt
 
 
 renderView :: AppM sig m => Html () -> m (Html ())

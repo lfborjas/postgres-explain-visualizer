@@ -16,8 +16,8 @@ import Opaleye
 import Data.Profunctor.Product.Default (Default(..))
 import Data.UUID
 import Data.Text
-import Web.Internal.HttpApiData (FromHttpApiData)
-
+import Web.Internal.HttpApiData (FromHttpApiData(..))
+import PostgresExplainVisualizer.Database.Orphanage ()
 
 ---------------------------------------------------------------------------------
 
@@ -34,6 +34,26 @@ type PlanID = PlanID' UUID
 deriving via UUID instance (FromHttpApiData PlanID)
 
 ---------------------------------------------------------------------------------
+newtype NonEmptyText = NonEmptyText Text
+
+mkNonEmptyText :: Text -> Maybe NonEmptyText
+mkNonEmptyText t
+  | Data.Text.null t = Nothing
+  | otherwise = Just . NonEmptyText $ t
+
+instance DefaultFromField SqlText NonEmptyText where
+  defaultFromField = NonEmptyText <$> defaultFromField
+
+instance Default ToFields NonEmptyText (Column SqlText) where
+  def = toToFields (\(NonEmptyText txt) -> sqlStrictText txt)
+
+instance FromHttpApiData NonEmptyText where
+  parseUrlPiece t = do
+    s <- parseUrlPiece t
+    case mkNonEmptyText s of
+      Nothing -> Left $ "Text cannot be empty " <> t
+      Just parsed -> Right parsed
+---------------------------------------------------------------------------------
 
 data Plan' pid psource pquery =
   Plan
@@ -46,8 +66,8 @@ type Plan =
   Entity
     (Plan'
       PlanID
-      Text
-      (Maybe Text)
+      NonEmptyText
+      (Maybe NonEmptyText)
     )
 
 type PlanWrite =
@@ -88,7 +108,7 @@ planTable =
 
 -- QUERIES
 
-newPlan :: Text -> Maybe Text -> Insert [(PlanID, Text, Maybe Text)]
+newPlan :: NonEmptyText -> Maybe NonEmptyText -> Insert [(PlanID, Text, Maybe Text)]
 newPlan source query =
   Insert
     { iTable = planTable
@@ -103,8 +123,8 @@ newPlan source query =
         (toFields source)
         (toFields query)
 
-planByID :: PlanID -> Select (PlanIDField, Field SqlText, FieldNullable SqlText)
+planByID :: PlanID -> Select (PlanIDField, Field SqlText, FieldNullable SqlText, Field SqlTimestamptz)
 planByID pid_ = do
-  Entity{record} <- selectTable planTable
+  Entity{record, recordCreatedAt} <- selectTable planTable
   where_ $ planID record .=== toFields pid_
-  pure (planID record, planSource record, planQuery record)
+  pure (planID record, planSource record, planQuery record, recordCreatedAt)

@@ -5,9 +5,12 @@ module PostgresExplainVisualizer.Views.PEV2 where
 import Data.Text
 import Lucid
 import PyF
+import Data.Time (UTCTime, defaultTimeLocale, formatTime)
+import Data.Time.Format.ISO8601 (iso8601Show)
+import qualified Data.Text as T
 
-page :: Text -> Maybe Text -> Html ()
-page pSource mQuery = do
+page :: Text -> Maybe Text -> UTCTime -> Html ()
+page pSource mQuery createdAt = do
   let pQuery =
         case mQuery of
           Nothing -> "`null`" :: Text
@@ -16,7 +19,10 @@ page pSource mQuery = do
     -- ref: https://getbootstrap.com/docs/4.6/components/navbar/
     nav_ [class_ "navbar navbar-expand-lg navbar-light bg-light justify-content-between"] $ do
       a_ [class_ "navbar-brand", href_ "/"] "PG Explain Visualizer"
-      span_ [class_ "navbar-text"] $ "Plan Created At" <> ""
+      span_ [class_ "navbar-text"] $ do
+        time_ [datetime_ (T.pack . iso8601Show $ createdAt)] $ do
+          "Plan Created At "
+          toHtml $ formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S %Z" createdAt
       ul_ [class_ "navbar-nav"] $ do
         li_ [class_ "nav-item active"] $ do
           a_ [class_ "btn btn-primary", href_ "/"] "New Plan"

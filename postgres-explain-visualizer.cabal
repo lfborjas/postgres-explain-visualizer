@@ -47,6 +47,7 @@ library
       PostgresExplainVisualizer
       PostgresExplainVisualizer.Database.Pool
       PostgresExplainVisualizer.Database.Migrations
+      PostgresExplainVisualizer.Database.Orphanage
       PostgresExplainVisualizer.Effects.Database
       PostgresExplainVisualizer.Environment
       PostgresExplainVisualizer.Import

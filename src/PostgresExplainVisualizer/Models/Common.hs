@@ -11,6 +11,7 @@ import Data.Profunctor (Profunctor (lmap))
 import Data.Profunctor.Product.TH
 import Opaleye
 import Data.Time (UTCTime)
+import PostgresExplainVisualizer.Database.Orphanage ()
 
 --- ENTITY ABSTRACTION
 --- https://williamyaoh.com/posts/2019-12-28-abstracting-out-common-columns-opaleye.html
