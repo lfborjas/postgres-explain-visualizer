@@ -22,17 +22,15 @@ layout page = do
   html_ [lang_ "en"] $ do
     header
     body_ $ do
-      div_ [class_ "container grid-lg"] $ do
-        header_ [class_ "navbar mt-2"] $ do
-          section_ [class_ "navbar-section"] $ do
-            a_ [href_ "/", class_ "navbar-brand mr-2"] "New Explain"
+      div_ [class_ "container-fluid"] $ do
         page
+        -- TODO: maybe add a footer?
 
 stylesheets :: Html ()
 stylesheets = do
-  link_ [rel_ "stylesheet", href_ "/static/css/spectre.min.css"]
-  link_ [rel_ "stylesheet", href_ "/static/css/spectre-exp.min.css"]
-  link_ [rel_ "stylesheet", href_ "/static/css/spectre-icons.min.css"]
+  -- REVIEW: should we also serve these?
+  link_ [rel_ "stylesheet", href_ "https://unpkg.com/bootstrap@4.5.0/dist/css/bootstrap.min.css "]
+  link_ [rel_ "stylesheet", href_ "https://unpkg.com/@fortawesome/fontawesome-free@5.13.0/css/all.css "]
 
 favicon :: Html ()
 favicon = do
