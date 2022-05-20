@@ -24,12 +24,14 @@ import Control.Carrier.Error.Either (throwError)
 import PostgresExplainVisualizer.Models.Common
 import qualified PostgresExplainVisualizer.Views.Layout as Layout
 import qualified PostgresExplainVisualizer.Views.PEV2 as PEV2
+import qualified PostgresExplainVisualizer.Views.NewPlan as NewPlan
 
 type Routes = ToServantApi Routes'
 type Param' = QueryParam' '[Required, Lenient]
 
 data Routes' mode = Routes'
-  { showPlan ::
+  { home :: mode :- Get '[HTML] (Html ())
+  , showPlan ::
       mode :- "plan"
       :> Capture "planId" PlanID
       :> Get '[HTML] (Html ())
@@ -37,8 +39,15 @@ data Routes' mode = Routes'
 
 server :: AppM sig m => ToServant Routes' (AsServerT m)
 server = genericServerT Routes'
-  { showPlan = showPlanHandler
+  { home = homeHandler
+  , showPlan = showPlanHandler
   }
+
+homeHandler
+  :: AppM sig m
+  => m (Html ())
+homeHandler = do
+  renderView $ NewPlan.page Nothing
 
 showPlanHandler
   :: AppM sig m
