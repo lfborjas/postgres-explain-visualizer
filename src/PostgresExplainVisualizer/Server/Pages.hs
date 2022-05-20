@@ -5,13 +5,8 @@ module PostgresExplainVisualizer.Server.Pages where
 
 import Lucid ( Html )
 import Servant
-    ( Lenient,
-      Required,
-      QueryFlag,
-      QueryParam',
-      QueryParams,
-      type (:>),
-      Get, Capture, QueryParam, Post, Optional )
+    ( type (:>),
+      Get, Capture, Post, ReqBody, FormUrlEncoded )
 import Servant.API.Generic
     ( Generic, GenericMode(type (:-)), ToServant, ToServantApi )
 import Servant.HTML.Lucid ( HTML )
@@ -19,33 +14,49 @@ import Servant.Server.Generic ( genericServerT, AsServerT )
 import PostgresExplainVisualizer.Models.Plan
 import PostgresExplainVisualizer.Types (AppM)
 import PostgresExplainVisualizer.Effects.Database (select, insert)
-import Data.Maybe (listToMaybe, catMaybes)
+import Data.Maybe (listToMaybe)
 import Servant.Server
 import Control.Carrier.Error.Either (throwError)
-import PostgresExplainVisualizer.Models.Common
 import qualified PostgresExplainVisualizer.Views.Layout as Layout
 import qualified PostgresExplainVisualizer.Views.PEV2 as PEV2
 import qualified PostgresExplainVisualizer.Views.NewPlan as NewPlan
-import Data.Text ( intercalate, Text, pack )
-import Data.Text qualified as T
+import Data.Text ( Text, pack )
 import Data.Text.Encoding (encodeUtf8)
+import Web.Internal.FormUrlEncoded (FromForm(..), parseUnique)
 
 type Routes = ToServantApi Routes'
-type RequiredParam' = QueryParam' '[Required, Lenient]
-type OptionalParam' = QueryParam' '[Optional, Lenient]
 
 data Routes' mode = Routes'
   { home :: mode :- Get '[HTML] (Html ())
   , createPlan ::
       mode :- "plans"
-      :> RequiredParam' "plan" NonEmptyText
-      :> OptionalParam' "query" NonEmptyText
+      :> ReqBody '[FormUrlEncoded] PlanRequest
       :> Post '[HTML] (Html ())
   , showPlan ::
       mode :- "plan"
       :> Capture "planId" PlanID
       :> Get '[HTML] (Html ())
   } deriving stock (Generic)
+
+data PlanRequest = PlanRequest
+  { planParam :: NonEmptyText
+  , queryParam :: Maybe NonEmptyText
+  }
+
+-- cf:
+-- https://stackoverflow.com/a/39819730
+-- https://hackage.haskell.org/package/http-api-data-0.4.1.1/docs/Web-Internal-FormUrlEncoded.html#t:FromForm
+instance FromForm PlanRequest where
+  fromForm f =
+    let parsedPlan = parseUnique "plan" f
+        parsedQuery =
+          -- NOTE: showing a bit of leniency to browser which send this
+          -- as an empty string.
+          case parseUnique "query" f of
+            Left _ -> Right Nothing
+            Right e -> Right $ Just e
+    in PlanRequest <$> parsedPlan <*> parsedQuery
+
 
 server :: AppM sig m => ToServant Routes' (AsServerT m)
 server = genericServerT Routes'
@@ -62,24 +73,14 @@ homeHandler = do
 
 createPlanHandler
   :: AppM sig m
-  => Either Text NonEmptyText
-  -> Maybe (Either Text NonEmptyText)
+  => PlanRequest
   -> m (Html ())
-createPlanHandler parsedPlan parsedQuery = do
-  -- FIXME: surely there's a better way to do this in a transformer, I'm just out of time here!
-  case parsedPlan of
-    Left e -> renderView . NewPlan.page $ Just e
-    Right p -> do
-      let q =
-            case parsedQuery of
-              Nothing -> Nothing
-              Just (Left _e) -> Nothing
-              Just (Right q') -> Just q'
-      createdPlan <- insert $ newPlan p q
-      case listToMaybe createdPlan of
-        Nothing -> throwError $ err500 {errBody = "Unable to store plan, sorry!"}
-        Just (createdId, _, _) ->
-          redirect $ "/plan/" <> (pack . show $ createdId)
+createPlanHandler PlanRequest{planParam, queryParam} = do
+  createdPlan <- insert $ newPlan planParam queryParam
+  case listToMaybe createdPlan of
+    Nothing -> throwError $ err500 {errBody = "Unable to store plan, sorry!"}
+    Just (createdId, _, _) ->
+      redirect $ "/plan/" <> (pack . show $ createdId)
 
 showPlanHandler
   :: AppM sig m
