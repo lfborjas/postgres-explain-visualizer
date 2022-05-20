@@ -15,10 +15,14 @@ page pSource mQuery = do
   main_ $ do
     noscript_ "Need JS enabled for plan visualization"
     div_ [id_ "app"] mempty
-    script_ [src_ "https://unpkg.com/vue@3"] (""::Text)
-    script_ [type_ "module", src_ "/static/main.js"] (""::Text)
     script_ $ do
       [fmt|
           window.plan = `{pSource}`;
           window.query = {pQuery};
       |]
+    -- NOTE: these files are produced by the `npm run build` task within
+    -- `visualizer-component`, which is a very tiny Vue project; please run that
+    -- task if you update the component
+    link_ [href_ "/static/pev2/css/app.css", rel_ "stylesheet"]
+    script_ [src_ "/static/pev2/js/app.js"] (""::Text)
+    script_ [src_ "/static/pev2/js/chunk-vendors.js"] (""::Text)
