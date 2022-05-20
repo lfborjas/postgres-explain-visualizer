@@ -12,6 +12,5 @@ in
             nixpkgs.haskellPackages.haskell-language-server
             nixpkgs.haskellPackages.implicit-hie
             nixpkgs.nodejs
-            nixpkgs.nodePackages.typescript-language-server
         ];
     }
