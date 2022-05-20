@@ -7,6 +7,7 @@
 let
   dontCheck   = (import ./packages.nix{inherit system;}).haskell.lib.dontCheck;
   doJailbreak = (import ./packages.nix{inherit system;}).haskell.lib.doJailbreak;
+  overrideCabal = (import ./packages.nix{inherit system;}).haskell.lib.overrideCabal;
 in (super: {
   #servant = super.servant_0_18;
   #servant-server = super.servant-server_0_18;
@@ -16,4 +17,11 @@ in (super: {
   optics-th = super.optics-th_0_4;
   optics-extra = super.optics-extra_0_4;
   optics-core= super.optics-core_0_4;
+  ormolu =
+    if system == "aarch64-darwin" then
+      overrideCabal super.ormolu (drv: {
+        enableSeparateBinOutput = false;
+      })
+    else
+      super.ormolu;
 })
