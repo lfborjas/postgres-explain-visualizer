@@ -1,87 +1,47 @@
-<script setup lang="ts">
-import HelloWorld from "./components/HelloWorld.vue";
-import TheWelcome from "./components/TheWelcome.vue";
-</script>
-
 <template>
-  <header>
-    <img
-      alt="Vue logo"
-      class="logo"
-      src="./assets/logo.svg"
-      width="125"
-      height="125"
-    />
-
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
-    </div>
-  </header>
-
-  <main>
-    <TheWelcome />
-  </main>
+  <div id="app" class="d-flex">
+    <pev2 :plan-source="plan" :plan-query="query"></pev2>
+  </div>
 </template>
 
+<script>
+import pev2 from "pev2";
+
+const plan = window.plan || `
+                                                           QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=4.33..118.25 rows=10 width=488) (actual time=0.370..1.126 rows=10 loops=1)
+   ->  Bitmap Heap Scan on tenk1 t1  (cost=4.33..39.44 rows=10 width=244) (actual time=0.254..0.380 rows=10 loops=1)
+         Recheck Cond: (unique1 < 10)
+         ->  Bitmap Index Scan on tenk1_unique1  (cost=0.00..4.33 rows=10 width=0) (actual time=0.164..0.164 rows=10 loops=1)
+               Index Cond: (unique1 < 10)
+   ->  Index Scan using tenk2_unique2 on tenk2 t2  (cost=0.00..7.87 rows=1 width=244) (actual time=0.041..0.048 rows=1 loops=10)
+         Index Cond: (unique2 = t1.unique2)
+ Total runtime: 2.414 ms`;
+
+const query = window.query || `
+SELECT *
+FROM tenk1 t1, tenk2 t2
+WHERE t1.unique1 < 10 AND t1.unique2 = t2.unique2;`;
+
+export default {
+  name: "App",
+  data: function() {
+    return {
+      plan: plan,
+      query: query
+    };
+  },
+  components: {
+    pev2
+  }
+};
+</script>
+
 <style>
-@import "./assets/base.css";
-
+html,
+body,
 #app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-
-  font-weight: normal;
-}
-
-header {
-  line-height: 1.5;
-}
-
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
-}
-
-a,
-.green {
-  text-decoration: none;
-  color: hsla(160, 100%, 37%, 1);
-  transition: 0.4s;
-}
-
-@media (hover: hover) {
-  a:hover {
-    background-color: hsla(160, 100%, 37%, 0.2);
-  }
-}
-
-@media (min-width: 1024px) {
-  body {
-    display: flex;
-    place-items: center;
-  }
-
-  #app {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    padding: 0 2rem;
-  }
-
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .logo {
-    margin: 0 2rem 0 0;
-  }
+  height: 100%;
 }
 </style>
