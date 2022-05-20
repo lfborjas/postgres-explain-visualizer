@@ -5,6 +5,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE StandaloneDeriving #-}
 -- |
 
 module PostgresExplainVisualizer.Models.Plan where
@@ -15,6 +16,7 @@ import Opaleye
 import Data.Profunctor.Product.Default (Default(..))
 import Data.UUID
 import Data.Text
+import Web.Internal.HttpApiData (FromHttpApiData)
 
 
 ---------------------------------------------------------------------------------
@@ -29,6 +31,7 @@ type PlanIDField = PlanID' (Field SqlUuid)
 type PlanIDWrite = PlanID' (Maybe (Field SqlUuid))
 type PlanID = PlanID' UUID
 
+deriving via UUID instance (FromHttpApiData PlanID)
 
 ---------------------------------------------------------------------------------
 

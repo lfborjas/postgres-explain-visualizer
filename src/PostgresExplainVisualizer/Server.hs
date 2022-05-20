@@ -3,6 +3,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ImportQualifiedPost #-}
 
 module PostgresExplainVisualizer.Server where
 import Servant.API.Generic
@@ -20,9 +21,11 @@ import Control.Carrier.Reader (runReader)
 import PostgresExplainVisualizer.Effects.Database (runDatabaseWithConnection)
 import Control.Carrier.Error.Either (runError)
 import Control.Carrier.Lift (runM)
+import PostgresExplainVisualizer.Server.Pages qualified as Pages
 
 data Routes route = Routes
   { assets :: route :- "static" :> Raw
+  , pages  :: route :- Pages.Routes
   }
   deriving stock (Generic)
 
@@ -63,4 +66,6 @@ runServer ctx = withStdoutLogger $ \logger -> do
 
 pevServer :: AppM sig m => Routes (AsServerT m)
 pevServer = Routes
-  { assets = serveDirectoryWebApp "./static" }
+  { assets = serveDirectoryWebApp "./static"
+  , pages = Pages.server
+  }

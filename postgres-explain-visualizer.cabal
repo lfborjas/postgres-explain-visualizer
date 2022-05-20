@@ -51,8 +51,12 @@ library
       PostgresExplainVisualizer.Environment
       PostgresExplainVisualizer.Import
       PostgresExplainVisualizer.Server
+      PostgresExplainVisualizer.Server.Pages
       PostgresExplainVisualizer.Types
+      PostgresExplainVisualizer.Models.Common
       PostgresExplainVisualizer.Models.Plan
+      PostgresExplainVisualizer.Views.Layout
+      PostgresExplainVisualizer.Views.PEV2
     build-depends:
       base >= 4.13 && <= 4.17
       , aeson
@@ -71,11 +75,9 @@ library
       , wai-enforce-https
       , warp
       , envparse
-      -- alternative to interpolate 
       , PyF
       , wai-logger
       , wai-middleware-static 
-      -- from geocode.city
       , fused-effects
       -- DB stuff:
       , postgresql-simple
@@ -85,6 +87,9 @@ library
       , profunctors
       , product-profunctors
       , uuid
+      -- deranged HTML stuff:
+      , lucid
+      , servant-lucid
 
 
     hs-source-dirs:   src
