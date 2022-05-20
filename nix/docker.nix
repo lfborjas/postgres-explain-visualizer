@@ -2,7 +2,7 @@
 
 let
   bin = (pkgs.haskell.lib.justStaticExecutables (pkgs.haskell.lib.dontCheck pkgs.haskellPackages.postgres-explain-visualizer));
-  config = ../config;
+  static = ../static;
 in
 
 # This is the nix api to build images
@@ -24,8 +24,8 @@ pkgs.dockerTools.buildImage {
   };
   #
   extraCommands = ''
-    cp -rf ${config} config
-    chmod -R 777 config
+    cp -rf ${static} static
+    chmod -R 777 static
   '';
 
   # This exposes the Dockerfile commands you might be familiar with

@@ -22,7 +22,7 @@ jobs:
       env:
         HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
       run: |
-        docker tag ecliptic-surf:latest registry.heroku.com/pgexplain/web
+        docker tag postgres-explain-visualizer:latest registry.heroku.com/pgexplain/web
         docker push registry.heroku.com/pgexplain/web
     - name:  Release
       env:
