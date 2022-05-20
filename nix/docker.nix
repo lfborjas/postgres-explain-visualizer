@@ -32,7 +32,7 @@ pkgs.dockerTools.buildImage {
 
   # This exposes the Dockerfile commands you might be familiar with
   config = {
-    Cmd = [ "${bin}/bin/postgres-explain-visualizer-exe" ];
+    Cmd = [ "${bin}/bin/pev-exe" ];
     Env = [ 
       "DEPLOY_ENV=Production"
     ];
