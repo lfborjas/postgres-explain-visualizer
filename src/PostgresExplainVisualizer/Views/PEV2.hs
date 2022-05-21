@@ -17,16 +17,11 @@ page pSource mQuery createdAt = do
           Nothing -> "`null`" :: Text
           Just q -> mconcat ["`", q, "`"]
   main_ $ do
-    -- ref: https://getbootstrap.com/docs/4.6/components/navbar/
-    nav_ [class_ "navbar navbar-expand-lg navbar-light bg-light justify-content-between"] $ do
-      a_ [class_ "navbar-brand", href_ "/"] "PG Explain Visualizer"
+    planNavbar $ do
       span_ [class_ "navbar-text"] $ do
         time_ [datetime_ (T.pack . iso8601Show $ createdAt)] $ do
           "Plan Created At "
           toHtml $ formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S %Z" createdAt
-      ul_ [class_ "navbar-nav"] $ do
-        li_ [class_ "nav-item active"] $ do
-          a_ [class_ "btn btn-primary", href_ "/"] "New Plan"
 
     noscript_ "Need JS enabled for plan visualization"
     div_ [id_ "app"] mempty
@@ -41,3 +36,19 @@ page pSource mQuery createdAt = do
     link_ [href_ "/static/pev2/css/app.css", rel_ "stylesheet"]
     script_ [src_ "/static/pev2/js/app.js"] ("" :: Text)
     script_ [src_ "/static/pev2/js/chunk-vendors.js"] ("" :: Text)
+
+planNotFound :: Html ()
+planNotFound = do
+  main_ [class_ "container mt-2"] $ do
+    planNavbar mempty
+    div_ [class_ "alert alert-danger", role_ "alert"] "Plan Not Found"
+
+planNavbar :: Html () -> Html ()
+planNavbar titleContent = do
+  -- ref: https://getbootstrap.com/docs/4.6/components/navbar/
+  nav_ [class_ "navbar navbar-expand-lg navbar-light bg-light justify-content-between"] $ do
+    a_ [class_ "navbar-brand", href_ "/"] "PG Explain Visualizer"
+    titleContent
+    ul_ [class_ "navbar-nav"] $ do
+      li_ [class_ "nav-item active"] $ do
+        a_ [class_ "btn btn-primary", href_ "/"] "New Plan"

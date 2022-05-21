@@ -4,7 +4,7 @@ import Control.Carrier.Error.Either (throwError)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text, pack)
 import Data.Text.Encoding (encodeUtf8)
-import Lucid (Html)
+import Lucid (Html, renderBS)
 import PostgresExplainVisualizer.Effects.Database (insert, select)
 import PostgresExplainVisualizer.Models.Plan (
   NonEmptyText,
@@ -107,7 +107,7 @@ showPlanHandler ::
 showPlanHandler pid = do
   plan <- select $ planByID pid
   case listToMaybe plan of
-    Nothing -> throwError $ err404{errBody = "Plan doesn't exist"}
+    Nothing -> throwError $ htmlError err404 PEV2.planNotFound
     Just (_, pSource, pQuery, createdAt) ->
       renderView $ PEV2.page pSource pQuery createdAt
 
@@ -117,3 +117,7 @@ renderView = pure . Layout.layout
 redirect :: AppM sig m => Text -> m (Html ())
 redirect loc = do
   throwError $ err301{errHeaders = [("Location", encodeUtf8 loc)]}
+
+htmlError :: ServerError -> Html () -> ServerError
+htmlError err content =
+  err{errBody = renderBS (Layout.layout content), errHeaders = [("Content-Type", "text/html")]}
