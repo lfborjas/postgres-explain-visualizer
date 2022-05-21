@@ -1,12 +1,11 @@
 -- |
-
 module PostgresExplainVisualizer.Database.Migrations where
 
-import Database.PostgreSQL.Simple (connectPostgreSQL, withTransaction)
-import Database.PostgreSQL.Simple.Migration (MigrationCommand (..), MigrationContext (..), MigrationResult (..), runMigration)
+import Control.Monad (void)
 import Data.Text
 import Data.Text.Encoding (encodeUtf8)
-import Control.Monad (void)
+import Database.PostgreSQL.Simple (connectPostgreSQL, withTransaction)
+import Database.PostgreSQL.Simple.Migration (MigrationCommand (..), MigrationContext (..), MigrationResult (..), runMigration)
 
 -- TODO(luis) we may want to take a Bool parameter to send
 -- in `MigrationContext`: right now it defaults to verbose.

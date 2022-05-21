@@ -1,19 +1,17 @@
 -- |
-
 module PostgresExplainVisualizer.Views.NewPlan where
 
+import Control.Monad (when)
+import Data.Maybe
 import Data.Text
 import Lucid
-import Data.Maybe
-import Control.Monad (when)
 
 page :: Maybe Text -> Html ()
 page err = do
   let wasValidated =
-        if isJust err then
-          "was-validated"
-        else
-          ""
+        if isJust err
+          then "was-validated"
+          else ""
   main_ [class_ "container mt-2"] $ do
     h1_ "Postgres Explain Visualizer"
     palaver
@@ -27,8 +25,6 @@ page err = do
         label_ [for_ "query"] "Query (optional)"
         textarea_ [class_ "form-control", id_ "query", name_ "query", rows_ "10"] ""
       button_ [type_ "submit", class_ "btn btn-primary"] "Submit"
-
-      
 
 errorDisplay :: Maybe Text -> Html ()
 errorDisplay err = do

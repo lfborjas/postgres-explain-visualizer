@@ -1,5 +1,4 @@
 -- |
-
 module PostgresExplainVisualizer.Import (
   module Control.Algebra,
   module Control.Carrier.Error.Either,

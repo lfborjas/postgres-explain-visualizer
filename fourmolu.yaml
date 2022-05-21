@@ -1,0 +1,4 @@
+indentation: 2
+haddock-style: single-line
+ghc-opt: -XImportQualifiedPost
+
