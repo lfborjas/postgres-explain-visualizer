@@ -1,9 +1,7 @@
--- |
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ImportQualifiedPost #-}
 
 module PostgresExplainVisualizer.Server where
 import Servant.API.Generic ( Generic, GenericMode(type (:-)) )
@@ -14,12 +12,12 @@ import Servant.Server.Generic ( genericServeT, AsServerT )
 import PostgresExplainVisualizer.Environment
     ( AppContext(..),
       Config(configDatabaseUrl, configDeployEnv, configPort) )
-import qualified PostgresExplainVisualizer.Database.Pool as DB
+import PostgresExplainVisualizer.Database.Pool qualified as DB
 import Network.Wai.Logger (withStdoutLogger)
 import Network.Wai.Handler.Warp
     ( setLogger, setPort, runSettings, defaultSettings )
 import Data.Function ((&))
-import qualified Data.Pool as P
+import Data.Pool qualified as P
 import Control.Carrier.Reader (runReader)
 import PostgresExplainVisualizer.Effects.Database (runDatabaseWithConnection)
 import Control.Carrier.Error.Either (runError)

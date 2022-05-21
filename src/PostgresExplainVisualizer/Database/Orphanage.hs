@@ -7,10 +7,10 @@
 
 module PostgresExplainVisualizer.Database.Orphanage where
 
-import qualified Data.Profunctor.Product.Default as D
-import qualified Data.Time as Time
+import Data.Profunctor.Product.Default qualified as D
+import Data.Time qualified as Time
 import Opaleye (FromField)
-import qualified Opaleye as T
+import Opaleye qualified as T
 import Opaleye.Internal.Inferrable
 
 -- This is still not fully settled in the Opaleye repo:

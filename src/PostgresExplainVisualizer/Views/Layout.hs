@@ -1,6 +1,3 @@
-{-# LANGUAGE ImportQualifiedPost #-}
--- |
-
 module PostgresExplainVisualizer.Views.Layout where
 
 import Lucid

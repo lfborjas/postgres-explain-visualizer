@@ -16,8 +16,8 @@ import Env
 import GHC.Generics (Generic)
 import Text.Read (readMaybe)
 import Data.Text ( Text )
-import qualified Data.Pool as P
-import qualified Database.PostgreSQL.Simple as PG
+import Data.Pool qualified as P
+import Database.PostgreSQL.Simple qualified as PG
 
 data DeployEnv
   = Test

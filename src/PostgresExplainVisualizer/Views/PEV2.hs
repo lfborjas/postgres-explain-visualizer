@@ -7,7 +7,7 @@ import Lucid
 import PyF
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Data.Time.Format.ISO8601 (iso8601Show)
-import qualified Data.Text as T
+import Data.Text qualified as T
 
 page :: Text -> Maybe Text -> UTCTime -> Html ()
 page pSource mQuery createdAt = do

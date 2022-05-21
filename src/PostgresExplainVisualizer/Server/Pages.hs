@@ -1,6 +1,3 @@
-{-# LANGUAGE ImportQualifiedPost #-}
--- |
-
 module PostgresExplainVisualizer.Server.Pages where
 
 import Lucid ( Html )
@@ -17,9 +14,9 @@ import PostgresExplainVisualizer.Effects.Database (select, insert)
 import Data.Maybe (listToMaybe)
 import Servant.Server
 import Control.Carrier.Error.Either (throwError)
-import qualified PostgresExplainVisualizer.Views.Layout as Layout
-import qualified PostgresExplainVisualizer.Views.PEV2 as PEV2
-import qualified PostgresExplainVisualizer.Views.NewPlan as NewPlan
+import PostgresExplainVisualizer.Views.Layout qualified as Layout
+import PostgresExplainVisualizer.Views.PEV2 qualified as PEV2
+import PostgresExplainVisualizer.Views.NewPlan qualified as NewPlan
 import Data.Text ( Text, pack )
 import Data.Text.Encoding (encodeUtf8)
 import Web.Internal.FormUrlEncoded (FromForm(..), parseUnique)

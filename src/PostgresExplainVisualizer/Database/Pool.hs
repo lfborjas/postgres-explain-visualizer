@@ -1,6 +1,3 @@
-{-# LANGUAGE ImportQualifiedPost #-}
--- |
-
 module PostgresExplainVisualizer.Database.Pool where
 
 import Data.Pool

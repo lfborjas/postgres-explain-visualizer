@@ -35,6 +35,7 @@ common common-extensions
         NamedFieldPuns
         OverloadedStrings  
         TypeOperators
+        ImportQualifiedPost
     default-language: Haskell2010
 
 common common-ghc-options
