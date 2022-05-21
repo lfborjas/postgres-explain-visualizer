@@ -1,19 +1,22 @@
 module PostgresExplainVisualizer where
 
-import Options.Applicative
-    ( Parser,
-      ParserInfo,
-      fullDesc,
-      help,
-      info,
-      long,
-      progDesc,
-      switch,
-      execParser,
-      helper )
+import Options.Applicative (
+  Parser,
+  ParserInfo,
+  execParser,
+  fullDesc,
+  help,
+  helper,
+  info,
+  long,
+  progDesc,
+  switch,
+ )
 import PostgresExplainVisualizer.Database.Migrations (runMigrations)
-import PostgresExplainVisualizer.Environment
-    ( getServerConfig, Config(configDatabaseUrl) )
+import PostgresExplainVisualizer.Environment (
+  Config (configDatabaseUrl),
+  getServerConfig,
+ )
 import PostgresExplainVisualizer.Server qualified as Server
 
 newtype Opts = Opts {optMigrate :: Bool}

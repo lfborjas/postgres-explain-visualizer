@@ -11,41 +11,43 @@ module PostgresExplainVisualizer.Models.Plan where
 
 import Data.Profunctor.Product.Default (Default (..))
 import Data.Profunctor.Product.TH (makeAdaptorAndInstanceInferrable)
-import Data.Text ( null, Text )
-import Data.UUID ( UUID )
-import Opaleye
-    ( SqlTimestamptz,
-      Insert(..),
-      Select,
-      toToFields,
-      optionalTableField,
-      requiredTableField,
-      rReturning,
-      (.===),
-      where_,
-      sqlStrictText,
-      selectTable,
-      table,
-      toFields,
-      Field,
-      FieldNullable,
-      Column,
-      ToFields,
-      OnConflict(DoNothing),
-      SqlText,
-      SqlUuid,
-      DefaultFromField(..),
-      Table,
-      tableField )
+import Data.Text (Text, null)
+import Data.UUID (UUID)
+import Opaleye (
+  Column,
+  DefaultFromField (..),
+  Field,
+  FieldNullable,
+  Insert (..),
+  OnConflict (DoNothing),
+  Select,
+  SqlText,
+  SqlTimestamptz,
+  SqlUuid,
+  Table,
+  ToFields,
+  optionalTableField,
+  rReturning,
+  requiredTableField,
+  selectTable,
+  sqlStrictText,
+  table,
+  tableField,
+  toFields,
+  toToFields,
+  where_,
+  (.===),
+ )
 import PostgresExplainVisualizer.Database.Orphanage ()
-import PostgresExplainVisualizer.Models.Common
-    ( pEntity,
-      withTimestamp,
-      withTimestampFields,
-      Entity,
-      EntityField,
-      EntityT(Entity, record, recordCreatedAt),
-      EntityWriteField )
+import PostgresExplainVisualizer.Models.Common (
+  Entity,
+  EntityField,
+  EntityT (Entity, record, recordCreatedAt),
+  EntityWriteField,
+  pEntity,
+  withTimestamp,
+  withTimestampFields,
+ )
 import Web.Internal.HttpApiData (FromHttpApiData (..))
 
 ---------------------------------------------------------------------------------

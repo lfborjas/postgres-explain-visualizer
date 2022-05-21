@@ -10,10 +10,10 @@
 -- |
 module PostgresExplainVisualizer.Effects.Database where
 
-import Control.Algebra ( Algebra(..), type (:+:)(..), Has, send )
-import Control.Carrier.Reader ( ReaderC(..), runReader, ask )
-import Control.Monad.IO.Class ( MonadIO(..) )
-import Data.Kind ( Type )
+import Control.Algebra (Algebra (..), Has, send, type (:+:) (..))
+import Control.Carrier.Reader (ReaderC (..), ask, runReader)
+import Control.Monad.IO.Class (MonadIO (..))
+import Data.Kind (Type)
 import Data.Profunctor.Product.Default qualified as D
 import Database.PostgreSQL.Simple qualified as PG
 import Opaleye qualified as DB
