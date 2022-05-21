@@ -6,7 +6,7 @@ import Options.Applicative
 import PostgresExplainVisualizer.Environment
 import PostgresExplainVisualizer.Database.Migrations (runMigrations)
 
-data Opts = Opts {optMigrate :: !Bool}
+newtype Opts = Opts {optMigrate :: Bool}
 
 run :: IO ()
 run = do

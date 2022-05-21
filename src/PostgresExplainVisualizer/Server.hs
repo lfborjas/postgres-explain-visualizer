@@ -6,15 +6,18 @@
 {-# LANGUAGE ImportQualifiedPost #-}
 
 module PostgresExplainVisualizer.Server where
-import Servant.API.Generic
+import Servant.API.Generic ( Generic, GenericMode(type (:-)) )
 import Servant
-import PostgresExplainVisualizer.Types
-import Servant.Server.Generic
+    ( serveDirectoryWebApp, throwError, Raw, type (:>), ServerError )
+import PostgresExplainVisualizer.Types ( AppM )
+import Servant.Server.Generic ( genericServeT, AsServerT )
 import PostgresExplainVisualizer.Environment
+    ( AppContext(..),
+      Config(configDatabaseUrl, configDeployEnv, configPort) )
 import qualified PostgresExplainVisualizer.Database.Pool as DB
-import PostgresExplainVisualizer.Environment (Config(configDatabaseUrl))
 import Network.Wai.Logger (withStdoutLogger)
 import Network.Wai.Handler.Warp
+    ( setLogger, setPort, runSettings, defaultSettings )
 import Data.Function ((&))
 import qualified Data.Pool as P
 import Control.Carrier.Reader (runReader)
