@@ -2,7 +2,7 @@
 module PostgresExplainVisualizer.Database.Migrations where
 
 import Control.Monad (void)
-import Data.Text
+import Data.Text ( Text )
 import Data.Text.Encoding (encodeUtf8)
 import Database.PostgreSQL.Simple (connectPostgreSQL, withTransaction)
 import Database.PostgreSQL.Simple.Migration (MigrationCommand (..), MigrationContext (..), MigrationResult (..), runMigration)

@@ -7,6 +7,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Lucid (Html)
 import PostgresExplainVisualizer.Effects.Database (insert, select)
 import PostgresExplainVisualizer.Models.Plan
+    ( NonEmptyText, PlanID, newPlan, planByID )
 import PostgresExplainVisualizer.Types (AppM)
 import PostgresExplainVisualizer.Views.Layout qualified as Layout
 import PostgresExplainVisualizer.Views.NewPlan qualified as NewPlan
@@ -27,6 +28,7 @@ import Servant.API.Generic (
  )
 import Servant.HTML.Lucid (HTML)
 import Servant.Server
+    ( ServerError(errBody, errHeaders), err301, err404, err500 )
 import Servant.Server.Generic (AsServerT, genericServerT)
 import Web.Internal.FormUrlEncoded (FromForm (..), parseUnique)
 

@@ -3,12 +3,12 @@
 -- |
 module PostgresExplainVisualizer.Views.PEV2 where
 
-import Data.Text
+import Data.Text ( Text )
 import Data.Text qualified as T
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Data.Time.Format.ISO8601 (iso8601Show)
 import Lucid
-import PyF
+import PyF ( fmt )
 
 page :: Text -> Maybe Text -> UTCTime -> Html ()
 page pSource mQuery createdAt = do

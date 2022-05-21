@@ -51,7 +51,6 @@ library
       PostgresExplainVisualizer.Database.Orphanage
       PostgresExplainVisualizer.Effects.Database
       PostgresExplainVisualizer.Environment
-      PostgresExplainVisualizer.Import
       PostgresExplainVisualizer.Server
       PostgresExplainVisualizer.Server.Pages
       PostgresExplainVisualizer.Types

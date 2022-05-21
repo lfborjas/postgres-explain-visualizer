@@ -10,7 +10,7 @@ import Data.Profunctor.Product.Default qualified as D
 import Data.Time qualified as Time
 import Opaleye (FromField)
 import Opaleye qualified as T
-import Opaleye.Internal.Inferrable
+import Opaleye.Internal.Inferrable ( Inferrable(Inferrable) )
 
 -- This is still not fully settled in the Opaleye repo:
 -- https://github.com/tomjaguarpaw/haskell-opaleye/issues/495

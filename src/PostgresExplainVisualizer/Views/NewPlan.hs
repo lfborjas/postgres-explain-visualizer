@@ -2,8 +2,8 @@
 module PostgresExplainVisualizer.Views.NewPlan where
 
 import Control.Monad (when)
-import Data.Maybe
-import Data.Text
+import Data.Maybe ( fromJust, isJust )
+import Data.Text ( Text )
 import Lucid
 
 page :: Maybe Text -> Html ()

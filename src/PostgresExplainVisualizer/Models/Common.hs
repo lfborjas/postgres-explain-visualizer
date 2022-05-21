@@ -7,9 +7,10 @@
 module PostgresExplainVisualizer.Models.Common where
 
 import Data.Profunctor (Profunctor (lmap))
-import Data.Profunctor.Product.TH
+import Data.Profunctor.Product.TH ( makeAdaptorAndInstance )
 import Data.Time (UTCTime)
 import Opaleye
+    ( SqlTimestamptz, optionalTableField, Field, TableFields )
 import PostgresExplainVisualizer.Database.Orphanage ()
 
 --- ENTITY ABSTRACTION

@@ -11,11 +11,41 @@ module PostgresExplainVisualizer.Models.Plan where
 
 import Data.Profunctor.Product.Default (Default (..))
 import Data.Profunctor.Product.TH (makeAdaptorAndInstanceInferrable)
-import Data.Text
-import Data.UUID
+import Data.Text ( null, Text )
+import Data.UUID ( UUID )
 import Opaleye
+    ( SqlTimestamptz,
+      Insert(..),
+      Select,
+      toToFields,
+      optionalTableField,
+      requiredTableField,
+      rReturning,
+      (.===),
+      where_,
+      sqlStrictText,
+      selectTable,
+      table,
+      toFields,
+      Field,
+      FieldNullable,
+      Column,
+      ToFields,
+      OnConflict(DoNothing),
+      SqlText,
+      SqlUuid,
+      DefaultFromField(..),
+      Table,
+      tableField )
 import PostgresExplainVisualizer.Database.Orphanage ()
 import PostgresExplainVisualizer.Models.Common
+    ( pEntity,
+      withTimestamp,
+      withTimestampFields,
+      Entity,
+      EntityField,
+      EntityT(Entity, record, recordCreatedAt),
+      EntityWriteField )
 import Web.Internal.HttpApiData (FromHttpApiData (..))
 
 ---------------------------------------------------------------------------------

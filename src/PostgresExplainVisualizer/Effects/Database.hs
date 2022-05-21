@@ -10,17 +10,16 @@
 -- |
 module PostgresExplainVisualizer.Effects.Database where
 
-import Control.Algebra
-import Control.Carrier.Reader
-import Control.Monad.IO.Class
-import Data.Kind
+import Control.Algebra ( Algebra(..), type (:+:)(..), Has, send )
+import Control.Carrier.Reader ( ReaderC(..), runReader, ask )
+import Control.Monad.IO.Class ( MonadIO(..) )
+import Data.Kind ( Type )
 import Data.Profunctor.Product.Default qualified as D
 import Database.PostgreSQL.Simple qualified as PG
 import Opaleye qualified as DB
 import Opaleye.Internal.Inferrable qualified as DBI
 
 data Database (m :: Type -> Type) k where
-  -- rel8 world
   Insert :: DB.Insert hs -> Database m hs
   Update :: DB.Update hs -> Database m hs
   Delete :: DB.Delete hs -> Database m hs

@@ -1,7 +1,7 @@
 module PostgresExplainVisualizer.Database.Pool where
 
-import Data.Pool
-import Data.Text
+import Data.Pool ( Pool, createPool )
+import Data.Text ( Text )
 import Data.Text.Encoding (encodeUtf8)
 import Database.PostgreSQL.Simple qualified as PGS
 
