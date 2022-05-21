@@ -1,29 +1,25 @@
--- |
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE UndecidableInstances #-}
 
+-- |
 module PostgresExplainVisualizer.Effects.Database where
 
-import Control.Algebra
-import Control.Carrier.Reader
-import Data.Kind
+import Control.Algebra (Algebra (..), Has, send, type (:+:) (..))
+import Control.Carrier.Reader (ReaderC (..), ask, runReader)
+import Control.Monad.IO.Class (MonadIO (..))
+import Data.Kind (Type)
+import Data.Profunctor.Product.Default qualified as D
 import Database.PostgreSQL.Simple qualified as PG
-import Control.Monad.IO.Class
 import Opaleye qualified as DB
 import Opaleye.Internal.Inferrable qualified as DBI
-import Data.Profunctor.Product.Default qualified as D
 
 data Database (m :: Type -> Type) k where
-  -- rel8 world
   Insert :: DB.Insert hs -> Database m hs
   Update :: DB.Update hs -> Database m hs
   Delete :: DB.Delete hs -> Database m hs
@@ -66,3 +62,4 @@ instance
     L (Select query') -> do
       conn <- ask
       (<$ ctx) <$> liftIO (DB.runSelectI conn query')
+    R other -> alg (runDatabaseIO . hdl) (R other) ctx

@@ -1,29 +1,60 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE StandaloneDeriving #-}
--- |
 
+-- |
 module PostgresExplainVisualizer.Models.Plan where
 
+import Data.Profunctor.Product.Default (Default (..))
 import Data.Profunctor.Product.TH (makeAdaptorAndInstanceInferrable)
-import PostgresExplainVisualizer.Models.Common
-import Opaleye
-import Data.Profunctor.Product.Default (Default(..))
-import Data.UUID
-import Data.Text
-import Web.Internal.HttpApiData (FromHttpApiData(..))
+import Data.Text (Text, null)
+import Data.UUID (UUID)
+import Opaleye (
+  Column,
+  DefaultFromField (..),
+  Field,
+  FieldNullable,
+  Insert (..),
+  OnConflict (DoNothing),
+  Select,
+  SqlText,
+  SqlTimestamptz,
+  SqlUuid,
+  Table,
+  ToFields,
+  optionalTableField,
+  rReturning,
+  requiredTableField,
+  selectTable,
+  sqlStrictText,
+  table,
+  tableField,
+  toFields,
+  toToFields,
+  where_,
+  (.===),
+ )
 import PostgresExplainVisualizer.Database.Orphanage ()
+import PostgresExplainVisualizer.Models.Common (
+  Entity,
+  EntityField,
+  EntityT (Entity, record, recordCreatedAt),
+  EntityWriteField,
+  pEntity,
+  withTimestamp,
+  withTimestampFields,
+ )
+import Web.Internal.HttpApiData (FromHttpApiData (..))
 
 ---------------------------------------------------------------------------------
 
 newtype PlanID' a = PlanID {getPlanId :: a}
   deriving newtype (Eq, Show)
-  deriving Functor
+  deriving (Functor)
 
 $(makeAdaptorAndInstanceInferrable "pPlanID" ''PlanID')
 
@@ -53,37 +84,37 @@ instance FromHttpApiData NonEmptyText where
     case mkNonEmptyText s of
       Nothing -> Left $ "Text cannot be empty " <> t
       Just parsed -> Right parsed
+
 ---------------------------------------------------------------------------------
 
-data Plan' pid psource pquery =
-  Plan
-    { planID :: pid
-    , planSource :: psource
-    , planQuery :: pquery
-    }
+data Plan' pid psource pquery = Plan
+  { planID :: pid
+  , planSource :: psource
+  , planQuery :: pquery
+  }
 
 type Plan =
   Entity
-    (Plan'
-      PlanID
-      NonEmptyText
-      (Maybe NonEmptyText)
+    ( Plan'
+        PlanID
+        NonEmptyText
+        (Maybe NonEmptyText)
     )
 
 type PlanWrite =
   EntityWriteField
-    (Plan'
-      PlanIDWrite
-      (Field SqlText)
-      (FieldNullable SqlText)
+    ( Plan'
+        PlanIDWrite
+        (Field SqlText)
+        (FieldNullable SqlText)
     )
 
 type PlanField =
   EntityField
-    (Plan'
-      PlanIDField
-      (Field SqlText)
-      (FieldNullable SqlText)
+    ( Plan'
+        PlanIDField
+        (Field SqlText)
+        (FieldNullable SqlText)
     )
 
 $(makeAdaptorAndInstanceInferrable "pPlan" ''Plan')
@@ -100,9 +131,8 @@ planTable =
       Plan
         { planID = pPlanID (PlanID $ optionalTableField "id")
         , planSource = requiredTableField "source"
-        , planQuery  = tableField "query"
+        , planQuery = tableField "query"
         }
-
 
 ---------------------------------------------------------------------------------
 
@@ -116,12 +146,12 @@ newPlan source query =
     , iReturning = rReturning (\Entity{record} -> (planID record, planSource record, planQuery record))
     , iOnConflict = Just DoNothing
     }
-  where
-    row =
-      Plan
-        (PlanID Nothing)
-        (toFields source)
-        (toFields query)
+ where
+  row =
+    Plan
+      (PlanID Nothing)
+      (toFields source)
+      (toFields query)
 
 planByID :: PlanID -> Select (PlanIDField, Field SqlText, FieldNullable SqlText, Field SqlTimestamptz)
 planByID pid_ = do

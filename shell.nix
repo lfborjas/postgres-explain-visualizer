@@ -7,10 +7,12 @@ in
 
     nixpkgs.haskellPackages.shellFor {
         packages = p: builtins.attrValues lib;
-        buildInputs = [
-            nixpkgs.haskellPackages.cabal-install
-            nixpkgs.haskellPackages.haskell-language-server
-            nixpkgs.haskellPackages.implicit-hie
-            nixpkgs.nodejs
+        buildInputs = with nixpkgs; [
+            haskellPackages.cabal-install
+            haskellPackages.haskell-language-server
+            haskellPackages.implicit-hie
+            nodejs
+            hlint
+            haskellPackages.fourmolu
         ];
     }
