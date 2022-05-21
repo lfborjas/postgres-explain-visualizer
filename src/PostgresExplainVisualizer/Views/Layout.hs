@@ -1,7 +1,7 @@
 module PostgresExplainVisualizer.Views.Layout where
 
-import Lucid
 import Data.Text qualified as T
+import Lucid
 
 header :: Html ()
 header = do
@@ -21,7 +21,8 @@ layout page = do
     body_ $ do
       div_ [class_ "container-fluid"] $ do
         page
-        -- TODO: maybe add a footer?
+
+-- TODO: maybe add a footer?
 
 stylesheets :: Html ()
 stylesheets = do
@@ -31,10 +32,10 @@ stylesheets = do
 
 favicon :: Html ()
 favicon = do
-    -- from https://favicon.io/emoji-favicons/thinking-face
-    link_ [rel_ "apple-touch-icon", sizes_ "180x180", assetRef' "apple-touch-icon.png"]
-    link_ [rel_ "icon", type_ "image/png", sizes_ "32x32", assetRef' "favicon-32x32.png"]
-    link_ [rel_ "icon", type_ "image/png", sizes_ "16x16", assetRef' "favicon-16x16.png"]
-    link_ [rel_ "manifest", assetRef' "site.webmanifest"]
-    where
-        assetRef' = href_ . T.pack . mappend "/static/"
+  -- from https://favicon.io/emoji-favicons/thinking-face
+  link_ [rel_ "apple-touch-icon", sizes_ "180x180", assetRef' "apple-touch-icon.png"]
+  link_ [rel_ "icon", type_ "image/png", sizes_ "32x32", assetRef' "favicon-32x32.png"]
+  link_ [rel_ "icon", type_ "image/png", sizes_ "16x16", assetRef' "favicon-16x16.png"]
+  link_ [rel_ "manifest", assetRef' "site.webmanifest"]
+ where
+  assetRef' = href_ . T.pack . mappend "/static/"

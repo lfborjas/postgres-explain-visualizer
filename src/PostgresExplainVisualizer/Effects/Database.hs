@@ -1,23 +1,23 @@
--- |
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE UndecidableInstances #-}
 
+-- |
 module PostgresExplainVisualizer.Effects.Database where
 
 import Control.Algebra
 import Control.Carrier.Reader
-import Data.Kind
-import Database.PostgreSQL.Simple qualified as PG
 import Control.Monad.IO.Class
+import Data.Kind
+import Data.Profunctor.Product.Default qualified as D
+import Database.PostgreSQL.Simple qualified as PG
 import Opaleye qualified as DB
 import Opaleye.Internal.Inferrable qualified as DBI
-import Data.Profunctor.Product.Default qualified as D
 
 data Database (m :: Type -> Type) k where
   -- rel8 world

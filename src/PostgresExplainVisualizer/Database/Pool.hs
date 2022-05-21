@@ -1,9 +1,9 @@
 module PostgresExplainVisualizer.Database.Pool where
 
 import Data.Pool
-import Database.PostgreSQL.Simple qualified as PGS
 import Data.Text
 import Data.Text.Encoding (encodeUtf8)
+import Database.PostgreSQL.Simple qualified as PGS
 
 -- Two sources:
 -- https://github.com/sboehler/freer-servant/blob/52f9437cc3fddf735180e43a1d9d5a9f4026abbd/src/Capabilities/Database.hs

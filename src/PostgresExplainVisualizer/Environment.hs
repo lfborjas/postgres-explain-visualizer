@@ -1,23 +1,22 @@
 -- |
-
 module PostgresExplainVisualizer.Environment where
 
+import Data.Pool qualified as P
+import Data.Text (Text)
 import Data.Word (Word16)
-import Env
-  ( AsUnread (unread),
-    Error,
-    Parser,
-    Reader,
-    help,
-    parse,
-    str,
-    var,
-  )
+import Database.PostgreSQL.Simple qualified as PG
+import Env (
+  AsUnread (unread),
+  Error,
+  Parser,
+  Reader,
+  help,
+  parse,
+  str,
+  var,
+ )
 import GHC.Generics (Generic)
 import Text.Read (readMaybe)
-import Data.Text ( Text )
-import Data.Pool qualified as P
-import Database.PostgreSQL.Simple qualified as PG
 
 data DeployEnv
   = Test
@@ -44,9 +43,9 @@ getServerConfig = do
 parseConfig :: Parser Error Config
 parseConfig =
   Config
-  <$> parsePort
-  <*> parseDatabaseUrl
-  <*> parseDeployEnv
+    <$> parsePort
+    <*> parseDatabaseUrl
+    <*> parseDeployEnv
 
 parsePort :: Parser Error Word16
 parsePort =
@@ -74,9 +73,10 @@ int i = case readMaybe i of
 port :: Reader Error Word16
 port p = case int p of
   Left err -> Left err
-  Right intPort -> if intPort >= 1 && intPort <= 65535
-    then Right $ fromIntegral intPort
-    else Left . unread . show $ p
+  Right intPort ->
+    if intPort >= 1 && intPort <= 65535
+      then Right $ fromIntegral intPort
+      else Left . unread . show $ p
 
 env :: Reader Error DeployEnv
 env e = case readMaybe e of

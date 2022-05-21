@@ -1,9 +1,9 @@
 module PostgresExplainVisualizer where
 
-import PostgresExplainVisualizer.Server qualified as Server
 import Options.Applicative
-import PostgresExplainVisualizer.Environment
 import PostgresExplainVisualizer.Database.Migrations (runMigrations)
+import PostgresExplainVisualizer.Environment
+import PostgresExplainVisualizer.Server qualified as Server
 
 newtype Opts = Opts {optMigrate :: Bool}
 
@@ -11,14 +11,15 @@ run :: IO ()
 run = do
   config <- getServerConfig
   opts <- execParser optsParser
-  if optMigrate opts then do
-    putStrLn "Migrating..."
-    didMigrate <- runMigrations "migrations" (configDatabaseUrl config)
-    case didMigrate of
-      Left e -> putStrLn $ "Error migrating: " <> e
-      Right s -> putStrLn s
-  else do
-    Server.run config
+  if optMigrate opts
+    then do
+      putStrLn "Migrating..."
+      didMigrate <- runMigrations "migrations" (configDatabaseUrl config)
+      case didMigrate of
+        Left e -> putStrLn $ "Error migrating: " <> e
+        Right s -> putStrLn s
+    else do
+      Server.run config
 
 optsParser :: ParserInfo Opts
 optsParser =
