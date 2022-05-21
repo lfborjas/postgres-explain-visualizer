@@ -63,3 +63,4 @@ instance
     L (Select query') -> do
       conn <- ask
       (<$ ctx) <$> liftIO (DB.runSelectI conn query')
+    R other -> alg (runDatabaseIO . hdl) (R other) ctx
