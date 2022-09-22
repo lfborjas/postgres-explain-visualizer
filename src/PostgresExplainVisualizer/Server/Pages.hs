@@ -1,3 +1,5 @@
+{-# LANGUAGE KindSignatures #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 module PostgresExplainVisualizer.Server.Pages where
 
 import Control.Carrier.Error.Either (throwError)
@@ -22,7 +24,7 @@ import Servant (
   Get,
   Post,
   ReqBody,
-  type (:>),
+  type (:>), Verb, StdMethod (GET), Headers, Header, NoContent (NoContent), QueryParam, QueryParam', Required, Strict, addHeader
  )
 import Servant.API.Generic (
   Generic,
@@ -39,11 +41,30 @@ import Servant.Server (
  )
 import Servant.Server.Generic (AsServerT, genericServerT)
 import Web.Internal.FormUrlEncoded (FromForm (..), parseUnique)
+import Data.Kind (Type)
+import PostgresExplainVisualizer.Client.Github.Api
+import PostgresExplainVisualizer.Environment (AppContext(ctxGithubOAuthCredentials, AppContext))
+import qualified Data.UUID as UUID
+import Control.Carrier.Reader (ask)
+import PostgresExplainVisualizer.Effects.Http
+import PostgresExplainVisualizer.Effects.Log
+import Prelude hiding (log)
 
 type Routes = ToServantApi Routes'
+type Get302 (cts :: [Type]) (hs :: [Type]) a = Verb 'GET 302 cts (Headers (Header "Location" Text ': hs) a)
+type StrictParam = QueryParam' '[Required, Strict]
 
 data Routes' mode = Routes'
   { home :: mode :- Get '[HTML] (Html ())
+  , login ::
+      mode :- "oauth" :> "github"
+        :> QueryParam "return_to" Text
+        :> Get302 '[HTML] '[] NoContent
+  , githubCallback ::
+      mode :- "oauth" :> "github" :> "callback"
+        :> StrictParam "code" OAuthCode
+        :> StrictParam "state" OAuthState
+        :> Get302 '[HTML] '[] NoContent
   , createPlan ::
       mode :- "plans"
         :> ReqBody '[FormUrlEncoded] PlanRequest
@@ -79,9 +100,46 @@ server =
   genericServerT
     Routes'
       { home = homeHandler
+      , login = loginHandler
+      , githubCallback = githubCallbackHandler
       , createPlan = createPlanHandler
       , showPlan = showPlanHandler
       }
+
+loginHandler ::
+  AppM sig m =>
+  Maybe Text ->
+  m (Headers '[Header "Location" Text] NoContent)
+loginHandler returnTo = do
+  AppContext{ctxGithubOAuthCredentials} <- ask
+  let oAuthState = OAuthState UUID.nil
+      loginUrl = mkIdentityUrl ctxGithubOAuthCredentials oAuthState returnTo
+  -- TODO: actually assign a random OAuth state and store it in a session cookie
+  pure $ addHeader loginUrl NoContent
+
+githubCallbackHandler ::
+  AppM sig m =>
+  OAuthCode ->
+  OAuthState ->
+  m (Headers '[Header "Location" Text] NoContent)
+githubCallbackHandler oAuthCode oAuthState = do
+  AppContext{ctxGithubOAuthCredentials} <- ask
+  -- TODO: actually pull this out of the session cookie
+  let mState = Just . OAuthState $ UUID.nil
+  if not $ stateMatches mState oAuthState
+    then throwError $ err500{errBody = "Invalid OAuth State"}
+    else do
+      oAuthResponse <- runGithubApiJSON $ getAccessToken ctxGithubOAuthCredentials oAuthCode
+      case oAuthResponse of
+        Left (JsonParseError e) -> do
+          log Error $ "Error during oauth: " <> pack e
+          throwError $ err500 {errBody = "Invalid OAuth Response"}
+        Right oAuthData -> do
+          log Debug $ "OAuth response: " <> pack (show oAuthData)
+          pure $ addHeader "/" NoContent
+  where
+    stateMatches Nothing _ = False
+    stateMatches (Just sessionState) ghState = sessionState == ghState
 
 homeHandler ::
   AppM sig m =>

@@ -1,0 +1,25 @@
+#+TITLE: Todo
+
+* <2022-09-22 Thu>
+** TODO Basic OAuth Flow
+- [ ] Redirect to GH for auth
+- [ ] Redirect back to the app
+- [ ] Parse response
+** TODO session management (needs more deps)
+- [ ] Use some manner of servant auth for an encrypted cookie:
+  https://www.stackbuilders.com/blog/servant-auth/
+- [ ] Able to pull out the github data from the cookie
+** TODO API interaction (needs more deps)
+- [ ] Use optics + aeson-optics!
+  see: https://tech.lfborjas.com/meandering/
+- [ ] Get user info
+- [ ] Get user's orgs
+** TODO User Persistence
+- [ ] Create user table
+- [ ] Upon oauth redirect: get user info, and upsert user data.
+- [ ] Ability to set session cookie containing auth token
+** TODO Optional "my plans" view
+- [ ] New page
+** TODO Share with members of my org
+- [ ] "share this plan" form: set as public, private, shared with org
+- [ ] Authz to see plans

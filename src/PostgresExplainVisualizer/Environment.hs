@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 -- |
 module PostgresExplainVisualizer.Environment where
 
@@ -28,13 +29,29 @@ data Config = Config
   { configPort :: !Word16
   , configDatabaseUrl :: !Text
   , configDeployEnv :: !DeployEnv
+  , configGithubClientId :: !Text
+  , configGithubClientSecret :: !Text
   }
   deriving stock (Eq, Show, Generic)
 
 data AppContext = AppContext
   { ctxPool :: P.Pool PG.Connection
   , ctxPort :: Word16
+  , ctxGithubOAuthCredentials :: GithubOAuthCredentials
   }
+
+data GithubOAuthCredentials = GithubOAuthCredentials
+  { clientId :: !Text
+  , clientSecret :: !Text
+  }
+
+mkAppContext :: P.Pool PG.Connection -> Config -> AppContext
+mkAppContext pool Config{..} =
+  AppContext
+    { ctxPool = pool
+    , ctxPort = configPort
+    , ctxGithubOAuthCredentials = GithubOAuthCredentials configGithubClientId configGithubClientSecret
+    }
 
 getServerConfig :: IO Config
 getServerConfig = do
@@ -46,6 +63,16 @@ parseConfig =
     <$> parsePort
     <*> parseDatabaseUrl
     <*> parseDeployEnv
+    <*> parseGithubClientId
+    <*> parseGithubClientSecret
+
+parseGithubClientSecret :: Parser Error Text
+parseGithubClientSecret =
+  var str "GH_CLIENT_SECRET" (help "Github OAuth Secret")
+
+parseGithubClientId :: Parser Error Text
+parseGithubClientId =
+  var str "GH_CLIENT_ID" (help "Github OAuth App ID")
 
 parsePort :: Parser Error Word16
 parsePort =

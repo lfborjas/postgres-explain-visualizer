@@ -19,7 +19,7 @@ import PostgresExplainVisualizer.Database.Pool qualified as DB
 import PostgresExplainVisualizer.Effects.Database (runDatabaseWithConnection)
 import PostgresExplainVisualizer.Environment (
   AppContext (..),
-  Config (configDatabaseUrl, configDeployEnv, configPort),
+  Config (configDatabaseUrl, configDeployEnv, configPort), mkAppContext
  )
 import PostgresExplainVisualizer.Server.Pages qualified as Pages
 import PostgresExplainVisualizer.Types (AppM)
@@ -32,6 +32,8 @@ import Servant (
  )
 import Servant.API.Generic (Generic, GenericMode (type (:-)))
 import Servant.Server.Generic (AsServerT, genericServeT)
+import PostgresExplainVisualizer.Effects.Http (HttpClient(runHttp))
+import PostgresExplainVisualizer.Effects.Log (LogStdoutC(runLogStdout))
 
 data Routes route = Routes
   { assets :: route :- "static" :> Raw
@@ -50,7 +52,7 @@ run config = do
       , "Serving on port "
       , show . configPort $ config
       ]
-  let ctx = AppContext pool (configPort config)
+  let ctx = mkAppContext pool config
   runServer ctx
 
 runServer :: AppContext -> IO ()
@@ -71,6 +73,8 @@ runServer ctx = withStdoutLogger $ \logger -> do
         & runError @ServerError
         & runReader cfg
         & runDatabaseWithConnection conn
+        & runHttp
+        & runLogStdout
         & runM
 
 pevServer :: AppM sig m => Routes (AsServerT m)

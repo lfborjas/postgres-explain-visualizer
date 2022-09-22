@@ -46,10 +46,13 @@ library
     import: common-ghc-options
     exposed-modules: 
       PostgresExplainVisualizer
+      PostgresExplainVisualizer.Client.Github.Api
       PostgresExplainVisualizer.Database.Pool
       PostgresExplainVisualizer.Database.Migrations
       PostgresExplainVisualizer.Database.Orphanage
       PostgresExplainVisualizer.Effects.Database
+      PostgresExplainVisualizer.Effects.Http
+      PostgresExplainVisualizer.Effects.Log
       PostgresExplainVisualizer.Environment
       PostgresExplainVisualizer.Server
       PostgresExplainVisualizer.Server.Pages
@@ -92,6 +95,12 @@ library
       -- deranged HTML stuff:
       , lucid
       , servant-lucid
+      -- for oauth integration:
+      , http-client
+      , http-client-tls
+      , http-media
+      , MonadRandom
+      , tls
 
 
     hs-source-dirs:   src
