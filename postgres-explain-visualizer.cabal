@@ -104,6 +104,7 @@ library
       , tls
       -- for cookie authentication:
       , servant-auth-server
+      , cookie
 
 
     hs-source-dirs:   src

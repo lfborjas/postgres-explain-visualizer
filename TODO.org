@@ -2,22 +2,26 @@
 
 * <2022-09-22 Thu>
 ** TODO Basic OAuth Flow
-- [ ] Redirect to GH for auth
-- [ ] Redirect back to the app
-- [ ] Parse response
+- [X] Redirect to GH for auth
+- [X] Redirect back to the app
+- [X] Parse response
+- [X] Set and store the state in a separate cookie?
 ** TODO session management (needs more deps)
-- [ ] Use some manner of servant auth for an encrypted cookie:
+- [X] Use some manner of servant auth for an encrypted cookie:
   https://www.stackbuilders.com/blog/servant-auth/
-- [ ] Able to pull out the github data from the cookie
+- [X] Able to pull out the github data from the cookie
 ** TODO API interaction (needs more deps)
-- [ ] Use optics + aeson-optics!
-  see: https://tech.lfborjas.com/meandering/
+- [ ] Store OAuth tokenin session?
 - [ ] Get user info
 - [ ] Get user's orgs
 ** TODO User Persistence
 - [ ] Create user table
+- [ ] Store user ID in session
 - [ ] Upon oauth redirect: get user info, and upsert user data.
-- [ ] Ability to set session cookie containing auth token
+- [X] Ability to set session cookie containing auth token
+** TODO "Claim" flow
+- [ ] If a user is authenticated already, just assign them the plan
+- [ ] If user isn't authenticated: render button with a return_to the plan,
 ** TODO Optional "my plans" view
 - [ ] New page
 ** TODO Share with members of my org

@@ -54,6 +54,8 @@ import Servant.Auth.Server ( ToJWT, FromJWT, Auth, SetCookie )
 import Data.Aeson (ToJSON, FromJSON)
 import Servant.Auth.Server qualified as Auth
 import PostgresExplainVisualizer.Effects.Crypto qualified as Crypto
+import Web.Cookie
+import Data.ByteString (ByteString)
 
 
 type Routes = ToServantApi Routes'
@@ -84,9 +86,10 @@ data RoutesWithoutSession mode = RoutesWithoutSession
   { login ::
       mode :- "oauth" :> "github"
         :> QueryParam "return_to" Text
-        :> Get302 '[HTML] '[] NoContent
+        :> Get302 '[HTML] '[Header "Set-Cookie" SetCookie] NoContent
   , githubCallback ::
       mode :- "oauth" :> "github" :> "callback"
+        :> Header "Cookie" Text
         :> StrictParam "code" OAuthCode
         :> StrictParam "state" OAuthState
         :> Get302 '[HTML] '[Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent
@@ -107,8 +110,7 @@ instance ToJSON Session
 instance ToJWT Session
 instance FromJSON Session
 instance FromJWT Session
--- FUCK/TODO: gotta write a goddamn effect that can actually work with this function:
---https://hackage.haskell.org/package/servant-auth-server-0.4.7.0/docs/Servant-Auth-Server-Internal-Cookie.html#v:acceptLogin
+
 -- cf:
 -- https://stackoverflow.com/a/39819730
 -- https://hackage.haskell.org/package/http-api-data-0.4.1.1/docs/Web-Internal-FormUrlEncoded.html#t:FromForm
@@ -116,7 +118,7 @@ instance FromForm PlanRequest where
   fromForm f =
     let parsedPlan = parseUnique "plan" f
         parsedQuery =
-          -- NOTE: showing a bit of leniency to browser which send this
+          -- NOTE: showing a bit of leniency to browsers which send this
           -- as an empty string.
           case parseUnique "query" f of
             Left _ -> Right Nothing
@@ -142,23 +144,39 @@ server =
 loginHandler ::
   AppM sig m =>
   Maybe Text ->
-  m (Headers '[Header "Location" Text] NoContent)
+  m (Headers '[Header "Location" Text, Header "Set-Cookie" SetCookie] NoContent)
 loginHandler returnTo = do
   AppContext{ctxGithubOAuthCredentials} <- ask
-  let oAuthState = OAuthState UUID.nil
-      loginUrl = mkIdentityUrl ctxGithubOAuthCredentials oAuthState returnTo
+  oAuthState <- Crypto.randomUUID
+  let loginUrl = mkIdentityUrl ctxGithubOAuthCredentials (OAuthState oAuthState) returnTo
+      stateCookie =
+        defaultSetCookie
+          { setCookieName = "STATE"
+          , setCookieValue = encodeUtf8 . UUID.toText $ oAuthState
+          , setCookiePath = Just "/"
+          -- NOTE: we _do_ want a cross-site cookie, to survive the redirection to
+          -- and from Github
+          , setCookieSameSite = Just sameSiteNone
+          , setCookieHttpOnly = True
+          , setCookieMaxAge = Just $ 10 * 60 -- 10 minutes
+          , setCookieSecure = True
+          }
   -- TODO: actually assign a random OAuth state and store it in a session cookie
-  pure $ addHeader loginUrl NoContent
+  pure $ addHeader loginUrl $ addHeader stateCookie NoContent
 
 githubCallbackHandler ::
   AppM sig m =>
+  Maybe Text ->
   OAuthCode ->
   OAuthState ->
   m (Headers '[Header "Location" Text, Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent)
-githubCallbackHandler oAuthCode oAuthState = do
+githubCallbackHandler rawCookies oAuthCode oAuthState = do
   AppContext{ctxGithubOAuthCredentials,ctxJwtSettings,ctxCookieSettings} <- ask
-  -- TODO: actually pull this out of the session cookie
-  let mState = Just . OAuthState $ UUID.nil
+  let cookies = parseCookiesText . encodeUtf8 <$> rawCookies
+      stateCookie = lookup "STATE" =<< cookies
+      mState = case stateCookie of
+        Nothing -> Nothing
+        Just stateText -> OAuthState <$> UUID.fromText stateText
   if not $ stateMatches mState oAuthState
     then throwError $ err500{errBody = "Invalid OAuth State"}
     else do
