@@ -28,12 +28,15 @@ import Servant (
   ServerError,
   serveDirectoryWebApp,
   throwError,
-  type (:>),
+  type (:>), Context ((:.), EmptyContext)
  )
 import Servant.API.Generic (Generic, GenericMode (type (:-)))
-import Servant.Server.Generic (AsServerT, genericServeT)
+import Servant.Server.Generic (AsServerT, genericServeTWithContext)
 import PostgresExplainVisualizer.Effects.Http (HttpClient(runHttp))
 import PostgresExplainVisualizer.Effects.Log (LogStdoutC(runLogStdout))
+import Servant.Auth.Server (readKey, defaultCookieSettings)
+import Servant.Auth.Server.Internal.ConfigTypes (defaultJWTSettings)
+import PostgresExplainVisualizer.Effects.Crypto (CryptoIOC(runCryptoIO))
 
 data Routes route = Routes
   { assets :: route :- "static" :> Raw
@@ -44,6 +47,9 @@ data Routes route = Routes
 run :: Config -> IO ()
 run config = do
   pool <- DB.initPool (configDatabaseUrl config)
+  jwtKey <- readKey "config/JWT.key"
+  let jwtSettings = defaultJWTSettings jwtKey
+      cookieSettings = defaultCookieSettings
   putStrLn $
     mconcat
       [ "["
@@ -52,12 +58,13 @@ run config = do
       , "Serving on port "
       , show . configPort $ config
       ]
-  let ctx = mkAppContext pool config
+  let ctx = mkAppContext pool jwtSettings cookieSettings config
   runServer ctx
 
 runServer :: AppContext -> IO ()
 runServer ctx = withStdoutLogger $ \logger -> do
-  let server = genericServeT (naturalTransform ctx) pevServer
+  let serverCfg = ctxCookieSettings ctx :. ctxJwtSettings ctx :. EmptyContext
+      server = genericServeTWithContext (naturalTransform ctx) pevServer serverCfg
       warpSettings =
         defaultSettings
           & setPort (fromIntegral $ ctxPort ctx)
@@ -75,6 +82,7 @@ runServer ctx = withStdoutLogger $ \logger -> do
         & runDatabaseWithConnection conn
         & runHttp
         & runLogStdout
+        & runCryptoIO
         & runM
 
 pevServer :: AppM sig m => Routes (AsServerT m)

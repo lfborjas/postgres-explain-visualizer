@@ -39,6 +39,7 @@ import Control.Applicative (Alternative)
 import Data.Function ((&))
 import Data.Text.Encoding (encodeUtf8)
 import Web.HttpApiData (FromHttpApiData)
+import Servant.Auth.Server (ToJWT, FromJWT)
 
 newtype OAuthCode =
   OAuthCode {unOAuthCode :: Text}
@@ -64,8 +65,13 @@ newtype OAuthTokenType =
 
 newtype OAuthState =
   OAuthState {unOAuthState :: UUID}
-  deriving stock (Eq)
+  deriving stock (Eq, Show, Read, Generic)
   deriving newtype (FromHttpApiData)
+
+instance ToJSON OAuthState
+instance ToJWT OAuthState
+instance FromJSON OAuthState
+instance FromJWT OAuthState
 
 -- | Response when exchanging a code for an access token:
 -- https://docs.github.com/en/developers/apps/building-oauth-apps/authorizing-oauth-apps#response

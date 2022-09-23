@@ -50,6 +50,7 @@ library
       PostgresExplainVisualizer.Database.Pool
       PostgresExplainVisualizer.Database.Migrations
       PostgresExplainVisualizer.Database.Orphanage
+      PostgresExplainVisualizer.Effects.Crypto
       PostgresExplainVisualizer.Effects.Database
       PostgresExplainVisualizer.Effects.Http
       PostgresExplainVisualizer.Effects.Log
@@ -101,6 +102,8 @@ library
       , http-media
       , MonadRandom
       , tls
+      -- for cookie authentication:
+      , servant-auth-server
 
 
     hs-source-dirs:   src

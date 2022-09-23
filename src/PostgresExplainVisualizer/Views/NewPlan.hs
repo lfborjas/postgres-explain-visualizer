@@ -54,3 +54,4 @@ palaver = do
     "or "
     a_ [href_ "https://explain.depesz.com/"] "an optionally obfuscating alternative "
     "if you're concerned about security."
+    a_ [href_ "/oauth/github"] "Login with Github"

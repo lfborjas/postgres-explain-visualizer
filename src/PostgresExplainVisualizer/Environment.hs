@@ -18,6 +18,7 @@ import Env (
  )
 import GHC.Generics (Generic)
 import Text.Read (readMaybe)
+import Servant.Auth.Server (JWTSettings, CookieSettings)
 
 data DeployEnv
   = Test
@@ -38,6 +39,8 @@ data AppContext = AppContext
   { ctxPool :: P.Pool PG.Connection
   , ctxPort :: Word16
   , ctxGithubOAuthCredentials :: GithubOAuthCredentials
+  , ctxJwtSettings :: JWTSettings
+  , ctxCookieSettings :: CookieSettings
   }
 
 data GithubOAuthCredentials = GithubOAuthCredentials
@@ -45,12 +48,16 @@ data GithubOAuthCredentials = GithubOAuthCredentials
   , clientSecret :: !Text
   }
 
-mkAppContext :: P.Pool PG.Connection -> Config -> AppContext
-mkAppContext pool Config{..} =
+mkAppContext :: P.Pool PG.Connection -> JWTSettings -> CookieSettings -> Config -> AppContext
+mkAppContext pool jwtSettings cookieSettings Config{..} =
   AppContext
     { ctxPool = pool
     , ctxPort = configPort
     , ctxGithubOAuthCredentials = GithubOAuthCredentials configGithubClientId configGithubClientSecret
+    -- FIXME: I'm sending these around like an idiot because I don't know how to use servant contexts with
+    -- servant generic??
+    , ctxJwtSettings = jwtSettings
+    , ctxCookieSettings = cookieSettings
     }
 
 getServerConfig :: IO Config

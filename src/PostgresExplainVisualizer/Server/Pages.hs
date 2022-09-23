@@ -24,7 +24,7 @@ import Servant (
   Get,
   Post,
   ReqBody,
-  type (:>), Verb, StdMethod (GET), Headers, Header, NoContent (NoContent), QueryParam, QueryParam', Required, Strict, addHeader
+  type (:>), Verb, StdMethod (GET), Headers, Header, NoContent (NoContent), QueryParam, QueryParam', Required, Strict, addHeader, err401
  )
 import Servant.API.Generic (
   Generic,
@@ -43,19 +43,24 @@ import Servant.Server.Generic (AsServerT, genericServerT)
 import Web.Internal.FormUrlEncoded (FromForm (..), parseUnique)
 import Data.Kind (Type)
 import PostgresExplainVisualizer.Client.Github.Api
-import PostgresExplainVisualizer.Environment (AppContext(ctxGithubOAuthCredentials, AppContext))
+import PostgresExplainVisualizer.Environment (AppContext(..))
 import qualified Data.UUID as UUID
 import Control.Carrier.Reader (ask)
 import PostgresExplainVisualizer.Effects.Http
 import PostgresExplainVisualizer.Effects.Log
 import Prelude hiding (log)
+import Servant.Auth.Server ( ToJWT, FromJWT, Auth, SetCookie )
+import Data.Aeson (ToJSON, FromJSON)
+import Servant.Auth.Server qualified as Auth
+import PostgresExplainVisualizer.Effects.Crypto qualified as Crypto
+
 
 type Routes = ToServantApi Routes'
 type Get302 (cts :: [Type]) (hs :: [Type]) a = Verb 'GET 302 cts (Headers (Header "Location" Text ': hs) a)
 type StrictParam = QueryParam' '[Required, Strict]
 
 data Routes' mode = Routes'
-  { home :: mode :- Get '[HTML] (Html ())
+  { home :: mode :- Auth '[Auth.Cookie] Session :> Get '[HTML] (Html ())
   , login ::
       mode :- "oauth" :> "github"
         :> QueryParam "return_to" Text
@@ -64,7 +69,7 @@ data Routes' mode = Routes'
       mode :- "oauth" :> "github" :> "callback"
         :> StrictParam "code" OAuthCode
         :> StrictParam "state" OAuthState
-        :> Get302 '[HTML] '[] NoContent
+        :> Get302 '[HTML] '[Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent
   , createPlan ::
       mode :- "plans"
         :> ReqBody '[FormUrlEncoded] PlanRequest
@@ -81,6 +86,18 @@ data PlanRequest = PlanRequest
   , queryParam :: Maybe NonEmptyText
   }
 
+data Session = Session
+  { sessionGHUsername :: Maybe Text
+  -- TODO: add user id?
+  }
+  deriving (Eq, Show, Read, Generic)
+
+instance ToJSON Session
+instance ToJWT Session
+instance FromJSON Session
+instance FromJWT Session
+-- FUCK/TODO: gotta write a goddamn effect that can actually work with this function:
+--https://hackage.haskell.org/package/servant-auth-server-0.4.7.0/docs/Servant-Auth-Server-Internal-Cookie.html#v:acceptLogin
 -- cf:
 -- https://stackoverflow.com/a/39819730
 -- https://hackage.haskell.org/package/http-api-data-0.4.1.1/docs/Web-Internal-FormUrlEncoded.html#t:FromForm
@@ -121,9 +138,9 @@ githubCallbackHandler ::
   AppM sig m =>
   OAuthCode ->
   OAuthState ->
-  m (Headers '[Header "Location" Text] NoContent)
+  m (Headers '[Header "Location" Text, Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent)
 githubCallbackHandler oAuthCode oAuthState = do
-  AppContext{ctxGithubOAuthCredentials} <- ask
+  AppContext{ctxGithubOAuthCredentials,ctxJwtSettings,ctxCookieSettings} <- ask
   -- TODO: actually pull this out of the session cookie
   let mState = Just . OAuthState $ UUID.nil
   if not $ stateMatches mState oAuthState
@@ -136,15 +153,21 @@ githubCallbackHandler oAuthCode oAuthState = do
           throwError $ err500 {errBody = "Invalid OAuth Response"}
         Right oAuthData -> do
           log Debug $ "OAuth response: " <> pack (show oAuthData)
-          pure $ addHeader "/" NoContent
+          let session = Session (Just "luis")
+          mApplyCookies <- Crypto.acceptLogin ctxCookieSettings ctxJwtSettings session
+          case mApplyCookies of
+            Nothing -> throwError err401
+            Just applyCookies -> pure $ addHeader "/" $ applyCookies NoContent
   where
     stateMatches Nothing _ = False
     stateMatches (Just sessionState) ghState = sessionState == ghState
 
 homeHandler ::
   AppM sig m =>
+  Auth.AuthResult Session ->
   m (Html ())
-homeHandler = do
+homeHandler sesh = do
+  log Debug $ pack $ show sesh
   renderView $ NewPlan.page Nothing
 
 createPlanHandler ::
