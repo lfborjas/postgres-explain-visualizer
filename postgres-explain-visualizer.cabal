@@ -60,6 +60,7 @@ library
       PostgresExplainVisualizer.Types
       PostgresExplainVisualizer.Models.Common
       PostgresExplainVisualizer.Models.Plan
+      PostgresExplainVisualizer.Models.User
       PostgresExplainVisualizer.Views.Layout
       PostgresExplainVisualizer.Views.PEV2
       PostgresExplainVisualizer.Views.NewPlan

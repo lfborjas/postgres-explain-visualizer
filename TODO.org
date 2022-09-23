@@ -11,17 +11,17 @@
   https://www.stackbuilders.com/blog/servant-auth/
 - [X] Able to pull out the github data from the cookie
 ** TODO API interaction (needs more deps)
-- [ ] Store OAuth tokenin session?
-- [ ] Get user info
+- [X] Store OAuth tokenin session? -- not doing it rn: don't need it
+- [X] Get user info
 - [ ] Get user's orgs
 ** TODO User Persistence
-- [ ] Create user table
+- [X] Create user table
 - [ ] Store user ID in session
-- [ ] Upon oauth redirect: get user info, and upsert user data.
+- [ ] Upon oauth redirect: get user info, and upsert user data based on GH username.
 - [X] Ability to set session cookie containing auth token
 ** TODO "Claim" flow
-- [ ] If a user is authenticated already, just assign them the plan
-- [ ] If user isn't authenticated: render button with a return_to the plan,
+- [ ] If a user is authenticated already, just assign them the plan upon creation
+- [ ] If user isn't authenticated: render button with a return_to the plan; maybe store unclaimed plans in session so we just update all of them upon login and then redirect to "my plans"??
 ** TODO Optional "my plans" view
 - [ ] New page
 ** TODO Share with members of my org

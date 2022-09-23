@@ -10,7 +10,6 @@ import Data.Text.Encoding (encodeUtf8)
 import Lucid (Html, renderBS)
 import PostgresExplainVisualizer.Effects.Database (insert, select)
 import PostgresExplainVisualizer.Models.Plan (
-  NonEmptyText,
   PlanID,
   newPlan,
   planByID,
@@ -56,6 +55,7 @@ import Servant.Auth.Server qualified as Auth
 import PostgresExplainVisualizer.Effects.Crypto qualified as Crypto
 import Web.Cookie
 import qualified PostgresExplainVisualizer.Client.Github.Api as GH
+import PostgresExplainVisualizer.Models.Common (NonEmptyText)
 
 
 type Routes = ToServantApi Routes'

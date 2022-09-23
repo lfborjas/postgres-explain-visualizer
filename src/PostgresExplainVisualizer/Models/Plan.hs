@@ -46,7 +46,7 @@ import PostgresExplainVisualizer.Models.Common (
   EntityWriteField,
   pEntity,
   withTimestamp,
-  withTimestampFields,
+  withTimestampFields, NonEmptyText
  )
 import Web.Internal.HttpApiData (FromHttpApiData (..))
 
@@ -63,27 +63,6 @@ type PlanIDWrite = PlanID' (Maybe (Field SqlUuid))
 type PlanID = PlanID' UUID
 
 deriving via UUID instance (FromHttpApiData PlanID)
-
----------------------------------------------------------------------------------
-newtype NonEmptyText = NonEmptyText Text
-
-mkNonEmptyText :: Text -> Maybe NonEmptyText
-mkNonEmptyText t
-  | Data.Text.null t = Nothing
-  | otherwise = Just . NonEmptyText $ t
-
-instance DefaultFromField SqlText NonEmptyText where
-  defaultFromField = NonEmptyText <$> defaultFromField
-
-instance Default ToFields NonEmptyText (Column SqlText) where
-  def = toToFields (\(NonEmptyText txt) -> sqlStrictText txt)
-
-instance FromHttpApiData NonEmptyText where
-  parseUrlPiece t = do
-    s <- parseUrlPiece t
-    case mkNonEmptyText s of
-      Nothing -> Left $ "Text cannot be empty " <> t
-      Just parsed -> Right parsed
 
 ---------------------------------------------------------------------------------
 

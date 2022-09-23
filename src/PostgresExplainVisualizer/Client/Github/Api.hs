@@ -43,7 +43,6 @@ import Data.Function ((&))
 import Data.Text.Encoding (encodeUtf8)
 import Web.HttpApiData (FromHttpApiData)
 import Servant.Auth.Server (ToJWT, FromJWT)
-import Servant.API.Empty (EmptyAPI)
 
 newtype OAuthCode =
   OAuthCode {unOAuthCode :: Text}
