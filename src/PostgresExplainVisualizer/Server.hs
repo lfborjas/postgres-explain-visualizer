@@ -34,7 +34,7 @@ import Servant.API.Generic (Generic, GenericMode (type (:-)))
 import Servant.Server.Generic (AsServerT, genericServeTWithContext)
 import PostgresExplainVisualizer.Effects.Http (HttpClient(runHttp))
 import PostgresExplainVisualizer.Effects.Log (LogStdoutC(runLogStdout))
-import Servant.Auth.Server (readKey, defaultCookieSettings)
+import Servant.Auth.Server (readKey, defaultCookieSettings, cookieXsrfSetting)
 import Servant.Auth.Server.Internal.ConfigTypes (defaultJWTSettings)
 import PostgresExplainVisualizer.Effects.Crypto (CryptoIOC(runCryptoIO))
 
@@ -49,7 +49,8 @@ run config = do
   pool <- DB.initPool (configDatabaseUrl config)
   jwtKey <- readKey "config/JWT.key"
   let jwtSettings = defaultJWTSettings jwtKey
-      cookieSettings = defaultCookieSettings
+      -- see: https://github.com/haskell-servant/servant/tree/bd9e4b10900d04bb5a24bcbb8ab2f7246fcd15c7/servant-auth#xsrf-and-the-frontend
+      cookieSettings = defaultCookieSettings{cookieXsrfSetting = Nothing}
   putStrLn $
     mconcat
       [ "["
