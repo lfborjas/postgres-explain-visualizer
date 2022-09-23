@@ -15,9 +15,12 @@
 module PostgresExplainVisualizer.Client.Github.Api
   ( runGithubApiJSON
   , getAccessToken
+  , getUser
   , mkIdentityUrl
   , OAuthCode (..)
   , OAuthState (..)
+  , OAuthResponse (..)
+  , GithubUser(..)
   )
 where
 
@@ -40,6 +43,7 @@ import Data.Function ((&))
 import Data.Text.Encoding (encodeUtf8)
 import Web.HttpApiData (FromHttpApiData)
 import Servant.Auth.Server (ToJWT, FromJWT)
+import Servant.API.Empty (EmptyAPI)
 
 newtype OAuthCode =
   OAuthCode {unOAuthCode :: Text}
@@ -90,6 +94,18 @@ instance FromJSON OAuthResponse where
     let scope = OAuthScope <$> splitOn "," scopes
     pure  $ OAuthResponse{..}
 
+-- | Subset of user data available through the GH API
+-- https://docs.github.com/en/rest/users/users#get-the-authenticated-user
+data GithubUser = GithubUser
+  { login :: Text
+  , gravatarId :: Maybe Text
+  , name :: Maybe Text
+  }
+  deriving stock (Show, Generic)
+
+instance FromJSON GithubUser where
+  parseJSON = genericParseJSON defaultOptions{fieldLabelModifier = camelTo2 '_'}
+
 -- API Helpers
 
 githubOAuthScopes :: NonEmpty OAuthScope
@@ -117,9 +133,13 @@ data GithubClient (m :: Type -> Type) k where
   GetAccessToken :: GithubOAuthCredentials -> OAuthCode -> GithubClient m OAuthResponse
   -- See: https://docs.github.com/en/rest/users/users#get-the-authenticated-user
   -- https://docs.github.com/en/rest/orgs/orgs#list-organizations-for-the-authenticated-user
+  GetUser :: AccessToken -> GithubClient m GithubUser
 
 getAccessToken :: Has GithubClient sig m => GithubOAuthCredentials -> OAuthCode -> m OAuthResponse
 getAccessToken creds code = send $ GetAccessToken creds code
+
+getUser :: Has GithubClient sig m => AccessToken -> m GithubUser
+getUser = send . GetUser
 
 newtype GithubApi m a =
   GithubApi { runGithubApi :: m a }
@@ -139,10 +159,31 @@ accessTokenRequest GithubOAuthCredentials {clientId, clientSecret} code =
       req = endpoint & HTTP.urlEncodedBody params
    in req{HTTP.method = "POST", HTTP.requestHeaders = headers}
 
+githubAPIBase :: Text
+githubAPIBase = "https://api.github.com"
+
+authenticatedJSONRequest :: AccessToken -> HTTP.Request -> HTTP.Request
+authenticatedJSONRequest (AccessToken token) req =
+  req{HTTP.requestHeaders = extraHeaders <> HTTP.requestHeaders req}
+  where
+    accessTokenHeader = ("Authorization", encodeUtf8 $ "Bearer " <> token)
+    acceptHeader = ("Accept", "application/json")
+    -- NOTE: mandated by GH, otherwise we get an error!
+    userAgent = ("User-Agent", "pgexplain.dev")
+    extraHeaders = [accessTokenHeader, acceptHeader, userAgent]
+
+getUserRequest :: HTTP.Request
+getUserRequest =
+  let endpoint = HTTP.parseRequest_ . unpack $ githubAPIBase <> "/user"
+   in endpoint{HTTP.method = "GET"}
+
 instance (Has Http sig m, Has (Throw JsonParseError) sig m, Algebra sig m) => Algebra (GithubClient :+: sig) (GithubApi m) where
   alg hdl sig ctx = case sig of
     L (GetAccessToken creds code) -> do
       resp <- sendRequest $ accessTokenRequest creds code
+      (<$ ctx) <$> decodeOrThrow (HTTP.responseBody resp)
+    L (GetUser token) -> do
+      resp <- sendRequest $ authenticatedJSONRequest token getUserRequest
       (<$ ctx) <$> decodeOrThrow (HTTP.responseBody resp)
     R other -> GithubApi (alg (runGithubApi . hdl) other ctx)
 

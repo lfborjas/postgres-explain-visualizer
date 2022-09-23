@@ -43,19 +43,19 @@ import Servant.Server (
 import Servant.Server.Generic (AsServerT, genericServerT)
 import Web.Internal.FormUrlEncoded (FromForm (..), parseUnique)
 import Data.Kind (Type)
-import PostgresExplainVisualizer.Client.Github.Api
+import PostgresExplainVisualizer.Client.Github.Api hiding(login)
 import PostgresExplainVisualizer.Environment (AppContext(..))
 import qualified Data.UUID as UUID
 import Control.Carrier.Reader (ask)
 import PostgresExplainVisualizer.Effects.Http
 import PostgresExplainVisualizer.Effects.Log
 import Prelude hiding (log)
-import Servant.Auth.Server ( ToJWT, FromJWT, Auth, SetCookie )
+import Servant.Auth.Server ( ToJWT, FromJWT, Auth)
 import Data.Aeson (ToJSON, FromJSON)
 import Servant.Auth.Server qualified as Auth
 import PostgresExplainVisualizer.Effects.Crypto qualified as Crypto
 import Web.Cookie
-import Data.ByteString (ByteString)
+import qualified PostgresExplainVisualizer.Client.Github.Api as GH
 
 
 type Routes = ToServantApi Routes'
@@ -101,7 +101,7 @@ data PlanRequest = PlanRequest
   }
 
 data Session = Session
-  { sessionGHUsername :: Maybe Text
+  { sessionGHUsername :: Text
   -- TODO: add user id?
   }
   deriving (Eq, Show, Read, Generic)
@@ -152,6 +152,9 @@ loginHandler returnTo = do
       stateCookie =
         defaultSetCookie
           { setCookieName = "STATE"
+          -- NOTE: should this be encrypted? It's a random, transient value, that is of
+          -- no use to malicious clients, but still pondering:
+          -- https://security.stackexchange.com/questions/140883/is-it-safe-to-store-the-state-parameter-value-in-cookie
           , setCookieValue = encodeUtf8 . UUID.toText $ oAuthState
           , setCookiePath = Just "/"
           -- NOTE: we _do_ want a cross-site cookie, to survive the redirection to
@@ -159,6 +162,8 @@ loginHandler returnTo = do
           , setCookieSameSite = Just sameSiteNone
           , setCookieHttpOnly = True
           , setCookieMaxAge = Just $ 10 * 60 -- 10 minutes
+          -- Secure cookies are required when SameSite = None; works fine in localhost
+          -- in latest chrome/firefox.
           , setCookieSecure = True
           }
   -- TODO: actually assign a random OAuth state and store it in a session cookie
@@ -185,13 +190,18 @@ githubCallbackHandler rawCookies oAuthCode oAuthState = do
         Left (JsonParseError e) -> do
           log Error $ "Error during oauth: " <> pack e
           throwError $ err500 {errBody = "Invalid OAuth Response"}
-        Right oAuthData -> do
-          log Debug $ "OAuth response: " <> pack (show oAuthData)
-          let session = Session (Just "luis")
-          mApplyCookies <- Crypto.acceptLogin ctxCookieSettings ctxJwtSettings session
-          case mApplyCookies of
-            Nothing -> throwError err401
-            Just applyCookies -> pure $ addHeader "/" $ applyCookies NoContent
+        Right OAuthResponse{accessToken} -> do
+          userResponse <- runGithubApiJSON $ getUser accessToken
+          case userResponse of
+            Left (JsonParseError e) -> do
+              log Error $ "Error getting user info: " <> pack e
+              throwError $ err500 {errBody = "Unable to verify identity"}
+            Right GithubUser{GH.login = githubUsername} -> do
+              let session = Session githubUsername
+              mApplyCookies <- Crypto.acceptLogin ctxCookieSettings ctxJwtSettings session
+              case mApplyCookies of
+                Nothing -> throwError err401
+                Just applyCookies -> pure $ addHeader "/" $ applyCookies NoContent
   where
     stateMatches Nothing _ = False
     stateMatches (Just sessionState) ghState = sessionState == ghState
