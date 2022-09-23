@@ -96,6 +96,9 @@ mkNonEmptyText t
   | Data.Text.null t = Nothing
   | otherwise = Just . NonEmptyText $ t
 
+unsafeNonEmptyText :: Text -> NonEmptyText
+unsafeNonEmptyText = NonEmptyText
+
 instance DefaultFromField SqlText NonEmptyText where
   defaultFromField = NonEmptyText <$> defaultFromField
 

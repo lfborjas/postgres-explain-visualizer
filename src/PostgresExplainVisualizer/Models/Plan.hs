@@ -9,9 +9,8 @@
 -- |
 module PostgresExplainVisualizer.Models.Plan where
 
-import Data.Profunctor.Product.Default (Default (..))
 import Data.Profunctor.Product.TH (makeAdaptorAndInstanceInferrable)
-import Data.Text (Text, null)
+import Data.Text (Text)
 import Data.UUID (UUID)
 import Opaleye (
   Column,
@@ -36,7 +35,7 @@ import Opaleye (
   toFields,
   toToFields,
   where_,
-  (.===),
+  (.===), maybeToNullable
  )
 import PostgresExplainVisualizer.Database.Orphanage ()
 import PostgresExplainVisualizer.Models.Common (
@@ -49,6 +48,7 @@ import PostgresExplainVisualizer.Models.Common (
   withTimestampFields, NonEmptyText
  )
 import Web.Internal.HttpApiData (FromHttpApiData (..))
+import PostgresExplainVisualizer.Models.User (UserID, UserID' (UserID, getUserId), UserIDWrite, pUserID)
 
 ---------------------------------------------------------------------------------
 
@@ -66,10 +66,11 @@ deriving via UUID instance (FromHttpApiData PlanID)
 
 ---------------------------------------------------------------------------------
 
-data Plan' pid psource pquery = Plan
+data Plan' pid psource pquery puser = Plan
   { planID :: pid
   , planSource :: psource
   , planQuery :: pquery
+  , planUserId :: puser
   }
 
 type Plan =
@@ -78,6 +79,7 @@ type Plan =
         PlanID
         NonEmptyText
         (Maybe NonEmptyText)
+        (Maybe UserID)
     )
 
 type PlanWrite =
@@ -86,6 +88,7 @@ type PlanWrite =
         PlanIDWrite
         (Field SqlText)
         (FieldNullable SqlText)
+        (UserID' (FieldNullable SqlUuid))
     )
 
 type PlanField =
@@ -94,6 +97,7 @@ type PlanField =
         PlanIDField
         (Field SqlText)
         (FieldNullable SqlText)
+        (UserID' (FieldNullable SqlUuid))
     )
 
 $(makeAdaptorAndInstanceInferrable "pPlan" ''Plan')
@@ -111,14 +115,15 @@ planTable =
         { planID = pPlanID (PlanID $ optionalTableField "id")
         , planSource = requiredTableField "source"
         , planQuery = tableField "query"
+        , planUserId = pUserID (UserID $ tableField "user_id")
         }
 
 ---------------------------------------------------------------------------------
 
 -- QUERIES
 
-newPlan :: NonEmptyText -> Maybe NonEmptyText -> Insert [(PlanID, Text, Maybe Text)]
-newPlan source query =
+newPlan :: NonEmptyText -> Maybe NonEmptyText -> Maybe UserID -> Insert [(PlanID, Text, Maybe Text)]
+newPlan source query mUserId =
   Insert
     { iTable = planTable
     , iRows = withTimestamp [row]
@@ -131,6 +136,8 @@ newPlan source query =
       (PlanID Nothing)
       (toFields source)
       (toFields query)
+      -- FIXME: this is literally so stupid
+      (UserID $ maybeToNullable $ toFields . getUserId <$> mUserId)
 
 planByID :: PlanID -> Select (PlanIDField, Field SqlText, FieldNullable SqlText, Field SqlTimestamptz)
 planByID pid_ = do

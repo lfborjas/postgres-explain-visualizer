@@ -1,6 +1,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE LambdaCase #-}
 module PostgresExplainVisualizer.Server.Pages where
 
 import Control.Carrier.Error.Either (throwError)
@@ -55,7 +56,8 @@ import Servant.Auth.Server qualified as Auth
 import PostgresExplainVisualizer.Effects.Crypto qualified as Crypto
 import Web.Cookie
 import qualified PostgresExplainVisualizer.Client.Github.Api as GH
-import PostgresExplainVisualizer.Models.Common (NonEmptyText)
+import PostgresExplainVisualizer.Models.Common (NonEmptyText (NonEmptyText), unsafeNonEmptyText)
+import PostgresExplainVisualizer.Models.User (UserID, userByGithubUsername, newUser)
 
 
 type Routes = ToServantApi Routes'
@@ -102,7 +104,7 @@ data PlanRequest = PlanRequest
 
 data Session = Session
   { sessionGHUsername :: Text
-  -- TODO: add user id?
+  , currentUserId :: UserID
   }
   deriving (Eq, Show, Read, Generic)
 
@@ -132,7 +134,7 @@ server =
     genericServerT $ Routes'
       { routesWithSession = \authResult -> genericServerT $ RoutesWithSession
           { home = homeHandler authResult
-          , createPlan = createPlanHandler
+          , createPlan = createPlanHandler authResult
           , showPlan = showPlanHandler
           }
       , routesWithoutSession = genericServerT $ RoutesWithoutSession
@@ -197,7 +199,8 @@ githubCallbackHandler rawCookies oAuthCode oAuthState = do
               log Error $ "Error getting user info: " <> pack e
               throwError $ err500 {errBody = "Unable to verify identity"}
             Right GithubUser{GH.login = githubUsername} -> do
-              let session = Session githubUsername
+              userId <- upsertUser $ unsafeNonEmptyText githubUsername
+              let session = Session githubUsername userId
               mApplyCookies <- Crypto.acceptLogin ctxCookieSettings ctxJwtSettings session
               case mApplyCookies of
                 Nothing -> throwError err401
@@ -205,6 +208,17 @@ githubCallbackHandler rawCookies oAuthCode oAuthState = do
   where
     stateMatches Nothing _ = False
     stateMatches (Just sessionState) ghState = sessionState == ghState
+    upsertUser :: AppM sig m => NonEmptyText -> m UserID
+    upsertUser uname = do
+      created <- insert $ newUser uname
+      case listToMaybe created of
+        Just (createdId, _) -> pure createdId
+        Nothing -> do
+          existing <- select $ userByGithubUsername uname
+          case listToMaybe existing of
+            Nothing -> throwError $ err500{errBody = "Unable to authenticate"}
+            Just (existingId, _) -> pure existingId
+
 
 homeHandler ::
   AppM sig m =>
@@ -216,14 +230,21 @@ homeHandler sesh = do
 
 createPlanHandler ::
   AppM sig m =>
+  Auth.AuthResult Session ->
   PlanRequest ->
   m (Html ())
-createPlanHandler PlanRequest{planParam, queryParam} = do
-  createdPlan <- insert $ newPlan planParam queryParam
+createPlanHandler authResult PlanRequest{planParam, queryParam} = do
+  let currentUserId = getCurrentUserId authResult
+  createdPlan <- insert $ newPlan planParam queryParam currentUserId
   case listToMaybe createdPlan of
     Nothing -> throwError $ err500{errBody = "Unable to store plan, sorry!"}
     Just (createdId, _, _) ->
       redirect $ "/plan/" <> (pack . show $ createdId)
+
+getCurrentUserId :: Auth.AuthResult Session -> Maybe UserID
+getCurrentUserId = \case
+  Auth.Authenticated Session{currentUserId} -> Just currentUserId
+  _ -> Nothing
 
 showPlanHandler ::
   AppM sig m =>

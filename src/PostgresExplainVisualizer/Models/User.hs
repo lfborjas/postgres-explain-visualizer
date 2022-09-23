@@ -42,11 +42,13 @@ import PostgresExplainVisualizer.Models.Common (
   withTimestampFields, NonEmptyText
  )
 import Web.Internal.HttpApiData (FromHttpApiData (..))
+import Data.Aeson (ToJSON, FromJSON)
+import Servant.Auth.Server (ToJWT, FromJWT)
 
 ---------------------------------------------------------------------------------
 
 newtype UserID' a = UserID {getUserId :: a}
-  deriving newtype (Eq, Show)
+  deriving newtype (Eq, Show, Read)
   deriving (Functor)
 
 $(makeAdaptorAndInstanceInferrable "pUserID" ''UserID')
@@ -56,7 +58,10 @@ type UserIDWrite = UserID' (Maybe (Field SqlUuid))
 type UserID = UserID' UUID
 
 deriving via UUID instance (FromHttpApiData UserID)
-
+deriving via UUID instance (ToJSON UserID)
+deriving via UUID instance (FromJSON UserID)
+instance ToJWT UserID
+instance FromJWT UserID
 ---------------------------------------------------------------------------------
 
 data User' pid pusername = User
