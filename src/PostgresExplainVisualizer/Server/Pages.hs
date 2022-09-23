@@ -1,5 +1,6 @@
 {-# LANGUAGE KindSignatures #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 module PostgresExplainVisualizer.Server.Pages where
 
 import Control.Carrier.Error.Either (throwError)
@@ -30,7 +31,7 @@ import Servant.API.Generic (
   Generic,
   GenericMode (type (:-)),
   ToServant,
-  ToServantApi,
+  ToServantApi
  )
 import Servant.HTML.Lucid (HTML)
 import Servant.Server (
@@ -60,16 +61,14 @@ type Get302 (cts :: [Type]) (hs :: [Type]) a = Verb 'GET 302 cts (Headers (Heade
 type StrictParam = QueryParam' '[Required, Strict]
 
 data Routes' mode = Routes'
-  { home :: mode :- Auth '[Auth.Cookie] Session :> Get '[HTML] (Html ())
-  , login ::
-      mode :- "oauth" :> "github"
-        :> QueryParam "return_to" Text
-        :> Get302 '[HTML] '[] NoContent
-  , githubCallback ::
-      mode :- "oauth" :> "github" :> "callback"
-        :> StrictParam "code" OAuthCode
-        :> StrictParam "state" OAuthState
-        :> Get302 '[HTML] '[Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent
+  { routesWithSession :: mode :- Auth '[Auth.Cookie] Session :> ToServantApi RoutesWithSession
+  , routesWithoutSession :: mode :- ToServantApi RoutesWithoutSession
+  }
+  deriving stock (Generic)
+
+-- | Routes that may use a session cookie when present
+data RoutesWithSession mode = RoutesWithSession
+  { home :: mode :- Get '[HTML] (Html ())
   , createPlan ::
       mode :- "plans"
         :> ReqBody '[FormUrlEncoded] PlanRequest
@@ -78,8 +77,20 @@ data Routes' mode = Routes'
       mode :- "plan"
         :> Capture "planId" PlanID
         :> Get '[HTML] (Html ())
-  }
-  deriving stock (Generic)
+ } deriving stock (Generic)
+
+-- | Routes that will never need a session cookie
+data RoutesWithoutSession mode = RoutesWithoutSession
+  { login ::
+      mode :- "oauth" :> "github"
+        :> QueryParam "return_to" Text
+        :> Get302 '[HTML] '[] NoContent
+  , githubCallback ::
+      mode :- "oauth" :> "github" :> "callback"
+        :> StrictParam "code" OAuthCode
+        :> StrictParam "state" OAuthState
+        :> Get302 '[HTML] '[Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent
+  } deriving stock (Generic)
 
 data PlanRequest = PlanRequest
   { planParam :: NonEmptyText
@@ -114,13 +125,18 @@ instance FromForm PlanRequest where
 
 server :: AppM sig m => ToServant Routes' (AsServerT m)
 server =
-  genericServerT
-    Routes'
-      { home = homeHandler
-      , login = loginHandler
-      , githubCallback = githubCallbackHandler
-      , createPlan = createPlanHandler
-      , showPlan = showPlanHandler
+    -- NOTE: wasn't immediately obvious that I needed to call @genericServerT@ at every level
+    -- until I saw this: https://github.com/haskell-servant/servant/issues/1015
+    genericServerT $ Routes'
+      { routesWithSession = \authResult -> genericServerT $ RoutesWithSession
+          { home = homeHandler authResult
+          , createPlan = createPlanHandler
+          , showPlan = showPlanHandler
+          }
+      , routesWithoutSession = genericServerT $ RoutesWithoutSession
+          { login = loginHandler
+          , githubCallback = githubCallbackHandler
+          }
       }
 
 loginHandler ::
