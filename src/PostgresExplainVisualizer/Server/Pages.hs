@@ -72,8 +72,7 @@ data Routes' mode = Routes'
 
 -- | Routes that may use a session cookie when present
 data RoutesWithSession mode = RoutesWithSession
-  { home :: mode :- Get '[HTML] (Html ())
-  , createPlan ::
+  { createPlan ::
       mode :- "plans"
         :> ReqBody '[FormUrlEncoded] PlanRequest
         :> Post '[HTML] (Html ())
@@ -81,11 +80,7 @@ data RoutesWithSession mode = RoutesWithSession
       mode :- "plan"
         :> Capture "planId" PlanID
         :> Get '[HTML] (Html ())
- } deriving stock (Generic)
-
--- | Routes that will never need a session cookie
-data RoutesWithoutSession mode = RoutesWithoutSession
-  { login ::
+  , login ::
       mode :- "oauth" :> "github"
         :> QueryParam "return_to" Text
         :> Get302 '[HTML] '[Header "Set-Cookie" SetCookie] NoContent
@@ -95,6 +90,12 @@ data RoutesWithoutSession mode = RoutesWithoutSession
         :> StrictParam "code" OAuthCode
         :> StrictParam "state" OAuthState
         :> Get302 '[HTML] '[Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent
+
+ } deriving stock (Generic)
+
+-- | Routes that will never need a session cookie
+data RoutesWithoutSession mode = RoutesWithoutSession
+  { home :: mode :- Get '[HTML] (Html ())
   } deriving stock (Generic)
 
 data PlanRequest = PlanRequest
@@ -102,10 +103,29 @@ data PlanRequest = PlanRequest
   , queryParam :: Maybe NonEmptyText
   }
 
-data Session = Session
+data AuthenticatedData = AuthenticatedData
   { sessionGHUsername :: Text
   , currentUserId :: UserID
-  }
+  } deriving (Eq, Show, Read, Generic)
+
+instance ToJSON AuthenticatedData
+instance ToJWT AuthenticatedData
+instance FromJSON AuthenticatedData
+instance FromJWT AuthenticatedData
+
+
+data AnonymousData = AnonymousData
+  { unclaimedPlans :: [PlanID]
+  } deriving (Eq, Show, Read, Generic)
+
+instance ToJSON AnonymousData
+instance ToJWT AnonymousData
+instance FromJSON AnonymousData
+instance FromJWT AnonymousData
+
+data Session
+  = Authenticated AuthenticatedData
+  | Anonymous AnonymousData
   deriving (Eq, Show, Read, Generic)
 
 instance ToJSON Session
@@ -133,13 +153,13 @@ server =
     -- until I saw this: https://github.com/haskell-servant/servant/issues/1015
     genericServerT $ Routes'
       { routesWithSession = \authResult -> genericServerT $ RoutesWithSession
-          { home = homeHandler authResult
+          { login = loginHandler
+          , githubCallback = githubCallbackHandler authResult
           , createPlan = createPlanHandler authResult
           , showPlan = showPlanHandler
           }
       , routesWithoutSession = genericServerT $ RoutesWithoutSession
-          { login = loginHandler
-          , githubCallback = githubCallbackHandler
+          {home = homeHandler
           }
       }
 
@@ -173,11 +193,19 @@ loginHandler returnTo = do
 
 githubCallbackHandler ::
   AppM sig m =>
+  Auth.AuthResult Session ->
   Maybe Text ->
   OAuthCode ->
   OAuthState ->
   m (Headers '[Header "Location" Text, Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent)
-githubCallbackHandler rawCookies oAuthCode oAuthState = do
+githubCallbackHandler (Auth.Authenticated session@(Authenticated AuthenticatedData{})) _ _ _ = do
+  log Debug "Was already authed!"
+  AppContext{ctxJwtSettings,ctxCookieSettings} <- ask
+  mApplyCookies <- Crypto.acceptLogin ctxCookieSettings ctxJwtSettings session
+  case mApplyCookies of
+    Nothing -> throwError err401
+    Just applyCookies -> pure $ addHeader "/" $ applyCookies NoContent
+githubCallbackHandler authResult rawCookies oAuthCode oAuthState = do
   AppContext{ctxGithubOAuthCredentials,ctxJwtSettings,ctxCookieSettings} <- ask
   let cookies = parseCookiesText . encodeUtf8 <$> rawCookies
       stateCookie = lookup "STATE" =<< cookies
@@ -200,7 +228,7 @@ githubCallbackHandler rawCookies oAuthCode oAuthState = do
               throwError $ err500 {errBody = "Unable to verify identity"}
             Right GithubUser{GH.login = githubUsername} -> do
               userId <- upsertUser $ unsafeNonEmptyText githubUsername
-              let session = Session githubUsername userId
+              let session = Authenticated $ AuthenticatedData githubUsername userId
               mApplyCookies <- Crypto.acceptLogin ctxCookieSettings ctxJwtSettings session
               case mApplyCookies of
                 Nothing -> throwError err401
@@ -222,10 +250,8 @@ githubCallbackHandler rawCookies oAuthCode oAuthState = do
 
 homeHandler ::
   AppM sig m =>
-  Auth.AuthResult Session ->
   m (Html ())
-homeHandler sesh = do
-  log Debug $ pack $ show sesh
+homeHandler = do
   renderView $ NewPlan.page Nothing
 
 createPlanHandler ::
@@ -243,7 +269,8 @@ createPlanHandler authResult PlanRequest{planParam, queryParam} = do
 
 getCurrentUserId :: Auth.AuthResult Session -> Maybe UserID
 getCurrentUserId = \case
-  Auth.Authenticated Session{currentUserId} -> Just currentUserId
+  Auth.Authenticated (Authenticated AuthenticatedData{currentUserId}) -> Just currentUserId
+  Auth.Authenticated _ -> Nothing
   _ -> Nothing
 
 showPlanHandler ::

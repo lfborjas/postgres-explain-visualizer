@@ -13,8 +13,6 @@ import Data.Profunctor.Product.TH (makeAdaptorAndInstanceInferrable)
 import Data.Text (Text)
 import Data.UUID (UUID)
 import Opaleye (
-  Column,
-  DefaultFromField (..),
   Field,
   FieldNullable,
   Insert (..),
@@ -24,16 +22,13 @@ import Opaleye (
   SqlTimestamptz,
   SqlUuid,
   Table,
-  ToFields,
   optionalTableField,
   rReturning,
   requiredTableField,
   selectTable,
-  sqlStrictText,
   table,
   tableField,
   toFields,
-  toToFields,
   where_,
   (.===), maybeToNullable
  )
@@ -48,12 +43,14 @@ import PostgresExplainVisualizer.Models.Common (
   withTimestampFields, NonEmptyText
  )
 import Web.Internal.HttpApiData (FromHttpApiData (..))
-import PostgresExplainVisualizer.Models.User (UserID, UserID' (UserID, getUserId), UserIDWrite, pUserID)
+import PostgresExplainVisualizer.Models.User (UserID, UserID' (UserID, getUserId), pUserID)
+import Data.Aeson (ToJSON, FromJSON)
+import Servant.Auth.Server (ToJWT, FromJWT)
 
 ---------------------------------------------------------------------------------
 
 newtype PlanID' a = PlanID {getPlanId :: a}
-  deriving newtype (Eq, Show)
+  deriving newtype (Eq, Show, Read)
   deriving (Functor)
 
 $(makeAdaptorAndInstanceInferrable "pPlanID" ''PlanID')
@@ -63,6 +60,10 @@ type PlanIDWrite = PlanID' (Maybe (Field SqlUuid))
 type PlanID = PlanID' UUID
 
 deriving via UUID instance (FromHttpApiData PlanID)
+deriving via UUID instance (ToJSON PlanID)
+deriving via UUID instance (FromJSON PlanID)
+instance ToJWT PlanID
+instance FromJWT PlanID
 
 ---------------------------------------------------------------------------------
 

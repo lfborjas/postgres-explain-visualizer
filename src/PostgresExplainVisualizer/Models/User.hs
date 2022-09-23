@@ -97,7 +97,7 @@ $(makeAdaptorAndInstanceInferrable "pUser" ''User')
 userTable ::
   Table UserWrite UserField
 userTable =
-  table "user" . pEntity . withTimestampFields $
+  table "user_account" . pEntity . withTimestampFields $
     pUser
       User
         { userID = pUserID (UserID $ optionalTableField "id")
