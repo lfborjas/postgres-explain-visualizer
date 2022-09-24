@@ -35,7 +35,7 @@ import PostgresExplainVisualizer.Database.Orphanage ()
 import PostgresExplainVisualizer.Models.Common (
   Entity,
   EntityField,
-  EntityT (Entity, record, recordCreatedAt),
+  EntityT (Entity, record),
   EntityWriteField,
   pEntity,
   withTimestamp,

@@ -25,7 +25,7 @@ import Servant (
   Get,
   Post,
   ReqBody,
-  type (:>), Verb, StdMethod (GET), Headers, Header, NoContent (NoContent), QueryParam, QueryParam', Required, Strict, addHeader, err401
+  type (:>), Verb, StdMethod (GET), Headers, Header, NoContent (NoContent), QueryParam, QueryParam', Required, Strict, addHeader, err401, err403
  )
 import Servant.API.Generic (
   Generic,
@@ -43,22 +43,29 @@ import Servant.Server (
 import Servant.Server.Generic (AsServerT, genericServerT)
 import Web.Internal.FormUrlEncoded (FromForm (..), parseUnique)
 import Data.Kind (Type)
-import PostgresExplainVisualizer.Client.Github.Api hiding(login)
+import PostgresExplainVisualizer.Client.Github.Api
+    ( getAccessToken,
+      runGithubApiJSON,
+      mkIdentityUrl,
+      OAuthResponse(OAuthResponse, accessToken),
+      OAuthState(OAuthState),
+      OAuthCode,
+      GithubUser(GithubUser),
+      getUser )
 import PostgresExplainVisualizer.Environment (AppContext(..))
-import qualified Data.UUID as UUID
 import Control.Carrier.Reader (ask)
 import PostgresExplainVisualizer.Effects.Http
+    ( JsonParseError(JsonParseError) )
 import PostgresExplainVisualizer.Effects.Log
+    ( log, LogLevel(Error, Debug) )
 import Prelude hiding (log)
-import Servant.Auth.Server ( ToJWT, FromJWT, Auth)
+import Servant.Auth.Server ( ToJWT, FromJWT, Auth, SetCookie)
 import Data.Aeson (ToJSON, FromJSON)
 import Servant.Auth.Server qualified as Auth
 import PostgresExplainVisualizer.Effects.Crypto qualified as Crypto
-import Web.Cookie
 import qualified PostgresExplainVisualizer.Client.Github.Api as GH
-import PostgresExplainVisualizer.Models.Common (NonEmptyText (NonEmptyText), unsafeNonEmptyText)
+import PostgresExplainVisualizer.Models.Common (unsafeNonEmptyText, NonEmptyText)
 import PostgresExplainVisualizer.Models.User (UserID, userByGithubUsername, newUser)
-
 
 type Routes = ToServantApi Routes'
 type Get302 (cts :: [Type]) (hs :: [Type]) a = Verb 'GET 302 cts (Headers (Header "Location" Text ': hs) a)
@@ -83,10 +90,9 @@ data RoutesWithSession mode = RoutesWithSession
   , login ::
       mode :- "oauth" :> "github"
         :> QueryParam "return_to" Text
-        :> Get302 '[HTML] '[Header "Set-Cookie" SetCookie] NoContent
+        :> Get302 '[HTML] '[Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent
   , githubCallback ::
       mode :- "oauth" :> "github" :> "callback"
-        :> Header "Cookie" Text
         :> StrictParam "code" OAuthCode
         :> StrictParam "state" OAuthState
         :> Get302 '[HTML] '[Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent
@@ -103,19 +109,19 @@ data PlanRequest = PlanRequest
   , queryParam :: Maybe NonEmptyText
   }
 
-data AuthenticatedData = AuthenticatedData
-  { sessionGHUsername :: Text
+data UserSessionData = UserSessionData
+  { username :: Text
   , currentUserId :: UserID
   } deriving (Eq, Show, Read, Generic)
 
-instance ToJSON AuthenticatedData
-instance ToJWT AuthenticatedData
-instance FromJSON AuthenticatedData
-instance FromJWT AuthenticatedData
-
+instance ToJSON UserSessionData
+instance ToJWT UserSessionData
+instance FromJSON UserSessionData
+instance FromJWT UserSessionData
 
 data AnonymousData = AnonymousData
   { unclaimedPlans :: [PlanID]
+  , oAuthNegotiationState :: OAuthState
   } deriving (Eq, Show, Read, Generic)
 
 instance ToJSON AnonymousData
@@ -124,7 +130,7 @@ instance FromJSON AnonymousData
 instance FromJWT AnonymousData
 
 data Session
-  = Authenticated AuthenticatedData
+  = Authenticated UserSessionData
   | Anonymous AnonymousData
   deriving (Eq, Show, Read, Generic)
 
@@ -153,7 +159,7 @@ server =
     -- until I saw this: https://github.com/haskell-servant/servant/issues/1015
     genericServerT $ Routes'
       { routesWithSession = \authResult -> genericServerT $ RoutesWithSession
-          { login = loginHandler
+          { login = loginHandler authResult
           , githubCallback = githubCallbackHandler authResult
           , createPlan = createPlanHandler authResult
           , showPlan = showPlanHandler
@@ -165,54 +171,45 @@ server =
 
 loginHandler ::
   AppM sig m =>
-  Maybe Text ->
-  m (Headers '[Header "Location" Text, Header "Set-Cookie" SetCookie] NoContent)
-loginHandler returnTo = do
-  AppContext{ctxGithubOAuthCredentials} <- ask
-  oAuthState <- Crypto.randomUUID
-  let loginUrl = mkIdentityUrl ctxGithubOAuthCredentials (OAuthState oAuthState) returnTo
-      stateCookie =
-        defaultSetCookie
-          { setCookieName = "STATE"
-          -- NOTE: should this be encrypted? It's a random, transient value, that is of
-          -- no use to malicious clients, but still pondering:
-          -- https://security.stackexchange.com/questions/140883/is-it-safe-to-store-the-state-parameter-value-in-cookie
-          , setCookieValue = encodeUtf8 . UUID.toText $ oAuthState
-          , setCookiePath = Just "/"
-          -- NOTE: we _do_ want a cross-site cookie, to survive the redirection to
-          -- and from Github
-          , setCookieSameSite = Just sameSiteNone
-          , setCookieHttpOnly = True
-          , setCookieMaxAge = Just $ 10 * 60 -- 10 minutes
-          -- Secure cookies are required when SameSite = None; works fine in localhost
-          -- in latest chrome/firefox.
-          , setCookieSecure = True
-          }
-  -- TODO: actually assign a random OAuth state and store it in a session cookie
-  pure $ addHeader loginUrl $ addHeader stateCookie NoContent
-
-githubCallbackHandler ::
-  AppM sig m =>
   Auth.AuthResult Session ->
   Maybe Text ->
-  OAuthCode ->
-  OAuthState ->
   m (Headers '[Header "Location" Text, Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent)
-githubCallbackHandler (Auth.Authenticated session@(Authenticated AuthenticatedData{})) _ _ _ = do
-  log Debug "Was already authed!"
+loginHandler (Auth.Authenticated session) _ = do
+  log Debug $ "Already authed, get outta here!" <> pack (show session)
+  reapplySessionAndRedirect session
+loginHandler _ returnTo = do
+  AppContext{ctxGithubOAuthCredentials, ctxCookieSettings , ctxJwtSettings} <- ask
+  oAuthState <- OAuthState <$> Crypto.randomUUID
+  let loginUrl = mkIdentityUrl ctxGithubOAuthCredentials oAuthState returnTo
+      modifiedCookieSettings = ctxCookieSettings{Auth.cookieSameSite = Auth.AnySite}
+      anonSession = Anonymous $ AnonymousData [] oAuthState
+  mApplyCookies <- Crypto.acceptLogin modifiedCookieSettings ctxJwtSettings anonSession
+  case mApplyCookies of
+    Nothing -> throwError err500{errBody = "Unable to initiate login"}
+    Just applyCookies -> pure $ addHeader loginUrl $ applyCookies NoContent
+
+reapplySessionAndRedirect ::
+  AppM sig m =>
+  Session ->
+  m (Headers '[Header "Location" Text, Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent)
+reapplySessionAndRedirect session = do
   AppContext{ctxJwtSettings,ctxCookieSettings} <- ask
   mApplyCookies <- Crypto.acceptLogin ctxCookieSettings ctxJwtSettings session
   case mApplyCookies of
     Nothing -> throwError err401
     Just applyCookies -> pure $ addHeader "/" $ applyCookies NoContent
-githubCallbackHandler authResult rawCookies oAuthCode oAuthState = do
+
+githubCallbackHandler ::
+  AppM sig m =>
+  Auth.AuthResult Session ->
+  OAuthCode ->
+  OAuthState ->
+  m (Headers '[Header "Location" Text, Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent)
+githubCallbackHandler (Auth.Authenticated session@(Authenticated UserSessionData{})) _ _  = do
+  reapplySessionAndRedirect session
+githubCallbackHandler (Auth.Authenticated (Anonymous AnonymousData{oAuthNegotiationState})) oAuthCode oAuthState = do
   AppContext{ctxGithubOAuthCredentials,ctxJwtSettings,ctxCookieSettings} <- ask
-  let cookies = parseCookiesText . encodeUtf8 <$> rawCookies
-      stateCookie = lookup "STATE" =<< cookies
-      mState = case stateCookie of
-        Nothing -> Nothing
-        Just stateText -> OAuthState <$> UUID.fromText stateText
-  if not $ stateMatches mState oAuthState
+  if oAuthNegotiationState /= oAuthState
     then throwError $ err500{errBody = "Invalid OAuth State"}
     else do
       oAuthResponse <- runGithubApiJSON $ getAccessToken ctxGithubOAuthCredentials oAuthCode
@@ -228,14 +225,13 @@ githubCallbackHandler authResult rawCookies oAuthCode oAuthState = do
               throwError $ err500 {errBody = "Unable to verify identity"}
             Right GithubUser{GH.login = githubUsername} -> do
               userId <- upsertUser $ unsafeNonEmptyText githubUsername
-              let session = Authenticated $ AuthenticatedData githubUsername userId
+              let session = Authenticated $ UserSessionData githubUsername userId
+              -- TODO: claim unclaimed plans
               mApplyCookies <- Crypto.acceptLogin ctxCookieSettings ctxJwtSettings session
               case mApplyCookies of
                 Nothing -> throwError err401
                 Just applyCookies -> pure $ addHeader "/" $ applyCookies NoContent
   where
-    stateMatches Nothing _ = False
-    stateMatches (Just sessionState) ghState = sessionState == ghState
     upsertUser :: AppM sig m => NonEmptyText -> m UserID
     upsertUser uname = do
       created <- insert $ newUser uname
@@ -246,7 +242,8 @@ githubCallbackHandler authResult rawCookies oAuthCode oAuthState = do
           case listToMaybe existing of
             Nothing -> throwError $ err500{errBody = "Unable to authenticate"}
             Just (existingId, _) -> pure existingId
-
+githubCallbackHandler _ _ _ =
+  throwError err403{errBody = "Invalid authentication state"}
 
 homeHandler ::
   AppM sig m =>
@@ -265,11 +262,12 @@ createPlanHandler authResult PlanRequest{planParam, queryParam} = do
   case listToMaybe createdPlan of
     Nothing -> throwError $ err500{errBody = "Unable to store plan, sorry!"}
     Just (createdId, _, _) ->
+      -- TODO: populate unclaimed plans if anonymous
       redirect $ "/plan/" <> (pack . show $ createdId)
 
 getCurrentUserId :: Auth.AuthResult Session -> Maybe UserID
 getCurrentUserId = \case
-  Auth.Authenticated (Authenticated AuthenticatedData{currentUserId}) -> Just currentUserId
+  Auth.Authenticated (Authenticated UserSessionData{currentUserId}) -> Just currentUserId
   Auth.Authenticated _ -> Nothing
   _ -> Nothing
 
