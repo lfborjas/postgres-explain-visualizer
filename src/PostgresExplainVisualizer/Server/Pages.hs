@@ -9,11 +9,11 @@ import Data.Maybe (listToMaybe)
 import Data.Text (Text, pack)
 import Data.Text.Encoding (encodeUtf8)
 import Lucid (Html, renderBS)
-import PostgresExplainVisualizer.Effects.Database (insert, select)
+import PostgresExplainVisualizer.Effects.Database (insert, select, update)
 import PostgresExplainVisualizer.Models.Plan (
   PlanID,
   newPlan,
-  planByID,
+  planByID, claimPlans
  )
 import PostgresExplainVisualizer.Types (AppM)
 import PostgresExplainVisualizer.Views.Layout qualified as Layout
@@ -23,9 +23,8 @@ import Servant (
   Capture,
   FormUrlEncoded,
   Get,
-  Post,
   ReqBody,
-  type (:>), Verb, StdMethod (GET), Headers, Header, NoContent (NoContent), QueryParam, QueryParam', Required, Strict, addHeader, err401, err403
+  type (:>), Verb, StdMethod (GET, POST), Headers, Header, NoContent (NoContent), QueryParam, QueryParam', Required, Strict, addHeader, err401, err403
  )
 import Servant.API.Generic (
   Generic,
@@ -66,9 +65,11 @@ import PostgresExplainVisualizer.Effects.Crypto qualified as Crypto
 import qualified PostgresExplainVisualizer.Client.Github.Api as GH
 import PostgresExplainVisualizer.Models.Common (unsafeNonEmptyText, NonEmptyText)
 import PostgresExplainVisualizer.Models.User (UserID, userByGithubUsername, newUser)
+import Control.Monad (void)
 
 type Routes = ToServantApi Routes'
 type Get302 (cts :: [Type]) (hs :: [Type]) a = Verb 'GET 302 cts (Headers (Header "Location" Text ': hs) a)
+type Post302 (cts :: [Type]) (hs :: [Type]) a = Verb 'POST 302 cts (Headers (Header "Location" Text ': hs) a)
 type StrictParam = QueryParam' '[Required, Strict]
 
 data Routes' mode = Routes'
@@ -82,7 +83,7 @@ data RoutesWithSession mode = RoutesWithSession
   { createPlan ::
       mode :- "plans"
         :> ReqBody '[FormUrlEncoded] PlanRequest
-        :> Post '[HTML] (Html ())
+        :> Post302 '[HTML] '[Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent
   , showPlan ::
       mode :- "plan"
         :> Capture "planId" PlanID
@@ -121,7 +122,7 @@ instance FromJWT UserSessionData
 
 data AnonymousData = AnonymousData
   { unclaimedPlans :: [PlanID]
-  , oAuthNegotiationState :: OAuthState
+  , oAuthNegotiationState :: Maybe OAuthState
   } deriving (Eq, Show, Read, Generic)
 
 instance ToJSON AnonymousData
@@ -174,30 +175,37 @@ loginHandler ::
   Auth.AuthResult Session ->
   Maybe Text ->
   m (Headers '[Header "Location" Text, Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent)
-loginHandler (Auth.Authenticated session) _ = do
+loginHandler (Auth.Authenticated session@(Authenticated _)) _ = do
   log Debug $ "Already authed, get outta here!" <> pack (show session)
-  reapplySessionAndRedirect session
-loginHandler _ returnTo = do
+  applySessionAndRedirect session "/"
+loginHandler authResult returnTo = do
   AppContext{ctxGithubOAuthCredentials, ctxCookieSettings , ctxJwtSettings} <- ask
   oAuthState <- OAuthState <$> Crypto.randomUUID
   let loginUrl = mkIdentityUrl ctxGithubOAuthCredentials oAuthState returnTo
       modifiedCookieSettings = ctxCookieSettings{Auth.cookieSameSite = Auth.AnySite}
-      anonSession = Anonymous $ AnonymousData [] oAuthState
+      anonSession = updateExistingAnonSession authResult oAuthState
   mApplyCookies <- Crypto.acceptLogin modifiedCookieSettings ctxJwtSettings anonSession
   case mApplyCookies of
     Nothing -> throwError err500{errBody = "Unable to initiate login"}
     Just applyCookies -> pure $ addHeader loginUrl $ applyCookies NoContent
+  where
+    updateExistingAnonSession authResult' oAuth = case authResult' of
+      Auth.Authenticated (Anonymous (AnonymousData existingPlans _)) ->
+        Anonymous (AnonymousData existingPlans (Just oAuth))
+      _ ->
+        Anonymous (AnonymousData [] (Just oAuth))
 
-reapplySessionAndRedirect ::
+applySessionAndRedirect ::
   AppM sig m =>
   Session ->
+  Text ->
   m (Headers '[Header "Location" Text, Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent)
-reapplySessionAndRedirect session = do
+applySessionAndRedirect session redirectTo = do
   AppContext{ctxJwtSettings,ctxCookieSettings} <- ask
   mApplyCookies <- Crypto.acceptLogin ctxCookieSettings ctxJwtSettings session
   case mApplyCookies of
     Nothing -> throwError err401
-    Just applyCookies -> pure $ addHeader "/" $ applyCookies NoContent
+    Just applyCookies -> pure $ addHeader redirectTo $ applyCookies NoContent
 
 githubCallbackHandler ::
   AppM sig m =>
@@ -206,10 +214,10 @@ githubCallbackHandler ::
   OAuthState ->
   m (Headers '[Header "Location" Text, Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent)
 githubCallbackHandler (Auth.Authenticated session@(Authenticated UserSessionData{})) _ _  = do
-  reapplySessionAndRedirect session
-githubCallbackHandler (Auth.Authenticated (Anonymous AnonymousData{oAuthNegotiationState})) oAuthCode oAuthState = do
+  applySessionAndRedirect session "/"
+githubCallbackHandler (Auth.Authenticated (Anonymous AnonymousData{oAuthNegotiationState, unclaimedPlans})) oAuthCode oAuthState = do
   AppContext{ctxGithubOAuthCredentials,ctxJwtSettings,ctxCookieSettings} <- ask
-  if oAuthNegotiationState /= oAuthState
+  if not $ stateMatches oAuthNegotiationState oAuthState
     then throwError $ err500{errBody = "Invalid OAuth State"}
     else do
       oAuthResponse <- runGithubApiJSON $ getAccessToken ctxGithubOAuthCredentials oAuthCode
@@ -226,12 +234,15 @@ githubCallbackHandler (Auth.Authenticated (Anonymous AnonymousData{oAuthNegotiat
             Right GithubUser{GH.login = githubUsername} -> do
               userId <- upsertUser $ unsafeNonEmptyText githubUsername
               let session = Authenticated $ UserSessionData githubUsername userId
-              -- TODO: claim unclaimed plans
               mApplyCookies <- Crypto.acceptLogin ctxCookieSettings ctxJwtSettings session
               case mApplyCookies of
                 Nothing -> throwError err401
-                Just applyCookies -> pure $ addHeader "/" $ applyCookies NoContent
+                Just applyCookies -> do
+                  void $ update $ claimPlans userId unclaimedPlans
+                  pure $ addHeader "/" $ applyCookies NoContent
   where
+    stateMatches Nothing _ = False
+    stateMatches (Just state) otherState = state == otherState
     upsertUser :: AppM sig m => NonEmptyText -> m UserID
     upsertUser uname = do
       created <- insert $ newUser uname
@@ -255,15 +266,24 @@ createPlanHandler ::
   AppM sig m =>
   Auth.AuthResult Session ->
   PlanRequest ->
-  m (Html ())
+  m (Headers '[Header "Location" Text, Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent)
 createPlanHandler authResult PlanRequest{planParam, queryParam} = do
   let currentUserId = getCurrentUserId authResult
   createdPlan <- insert $ newPlan planParam queryParam currentUserId
   case listToMaybe createdPlan of
     Nothing -> throwError $ err500{errBody = "Unable to store plan, sorry!"}
-    Just (createdId, _, _) ->
-      -- TODO: populate unclaimed plans if anonymous
-      redirect $ "/plan/" <> (pack . show $ createdId)
+    Just (createdId, _, _) -> do
+      newSession <- updateUnclaimedPlans authResult createdId
+      applySessionAndRedirect newSession $ "/plan/" <> (pack . show $ createdId)
+
+updateUnclaimedPlans :: AppM sig m => Auth.AuthResult Session -> PlanID -> m Session
+updateUnclaimedPlans authResult planId = case authResult of
+  Auth.Authenticated session@(Authenticated _) -> pure session
+  Auth.Authenticated (Anonymous AnonymousData{unclaimedPlans}) ->
+    pure $ Anonymous $ AnonymousData (planId : unclaimedPlans) Nothing
+  _ -> pure defaultAnonymous
+  where
+    defaultAnonymous = Anonymous AnonymousData{unclaimedPlans = [planId], oAuthNegotiationState = Nothing}
 
 getCurrentUserId :: Auth.AuthResult Session -> Maybe UserID
 getCurrentUserId = \case

@@ -16,6 +16,7 @@ import Opaleye (
   Field,
   FieldNullable,
   Insert (..),
+  Update (..),
   OnConflict (DoNothing),
   Select,
   SqlText,
@@ -30,7 +31,7 @@ import Opaleye (
   tableField,
   toFields,
   where_,
-  (.===), maybeToNullable
+  (.===), maybeToNullable, Update (uUpdateWith), SqlBool, (.&&), in_, toFieldsI
  )
 import PostgresExplainVisualizer.Database.Orphanage ()
 import PostgresExplainVisualizer.Models.Common (
@@ -40,12 +41,13 @@ import PostgresExplainVisualizer.Models.Common (
   EntityWriteField,
   pEntity,
   withTimestamp,
-  withTimestampFields, NonEmptyText
+  withTimestampFields, NonEmptyText, updateRecordWith
  )
 import Web.Internal.HttpApiData (FromHttpApiData (..))
 import PostgresExplainVisualizer.Models.User (UserID, UserID' (UserID, getUserId), pUserID)
 import Data.Aeson (ToJSON, FromJSON)
 import Servant.Auth.Server (ToJWT, FromJWT)
+import Opaleye.Column (isNull)
 
 ---------------------------------------------------------------------------------
 
@@ -145,3 +147,22 @@ planByID pid_ = do
   Entity{record, recordCreatedAt} <- selectTable planTable
   where_ $ planID record .=== toFields pid_
   pure (planID record, planSource record, planQuery record, recordCreatedAt)
+
+unclaimedPlansWithIds :: [PlanID] -> PlanField -> Field SqlBool
+unclaimedPlansWithIds planIds Entity{record} =
+  isNull (getUserId $ planUserId record) .&& in_ (map (toFields . getPlanId) planIds) (getPlanId $ planID record)
+
+claimPlans :: UserID -> [PlanID] -> Update [PlanID]
+claimPlans (UserID uid) planIds =
+  Update
+    { uTable = planTable
+    , uUpdateWith = updateRecordWith claimPlan
+    , uWhere = unclaimedPlansWithIds planIds
+    , uReturning = rReturning (\Entity{record} -> planID record)
+    }
+  where
+    claimPlan planEntity =
+      planEntity {
+        planID = Just <$> planID planEntity,
+        planUserId = UserID $ maybeToNullable $ toFields $ Just uid
+      }

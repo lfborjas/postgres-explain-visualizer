@@ -16,14 +16,19 @@
 - [ ] Get user's orgs
 ** TODO User Persistence
 - [X] Create user table
-- [ ] Store user ID in session
-- [ ] Upon oauth redirect: get user info, and upsert user data based on GH username.
+- [X] Store user ID in session
+- [X] Upon oauth redirect: get user info, and upsert user data based on GH username.
 - [X] Ability to set session cookie containing auth token
 ** TODO "Claim" flow
-- [ ] If a user is authenticated already, just assign them the plan upon creation
-- [ ] If user isn't authenticated: render button with a return_to the plan; maybe store unclaimed plans in session so we just update all of them upon login and then redirect to "my plans"??
+- [X] If a user is authenticated already, just assign them the plan upon creation
+- [X] If user isn't authenticated: maybe store unclaimed plans in session so we just update all of them upon login and then redirect to "my plans"??
+- [ ] Add "login" button to show plan view, or "my plans"
 ** TODO Optional "my plans" view
-- [ ] New page
+- [ ] New page: list plans with maybe a nice lil code block?
 ** TODO Share with members of my org
 - [ ] "share this plan" form: set as public, private, shared with org
 - [ ] Authz to see plans
+** TODO Deploy
+- [ ] Create "production" github app
+- [ ] Lil security audit
+- [ ] Ensure deployment actually copies over JWT key
