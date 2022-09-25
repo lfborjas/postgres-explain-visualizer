@@ -9,15 +9,18 @@ import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Data.Time.Format.ISO8601 (iso8601Show)
 import Lucid
 import PyF (fmt)
+import PostgresExplainVisualizer.Server.Types (UserSessionData(..))
+import PostgresExplainVisualizer.Models.Plan (PlanID, PlanID' (getPlanId))
+import Data.UUID (toText)
 
-page :: Text -> Maybe Text -> UTCTime -> Html ()
-page pSource mQuery createdAt = do
+page :: Maybe UserSessionData -> PlanID -> Text -> Maybe Text -> UTCTime -> Html ()
+page mSessionData planId pSource mQuery createdAt = do
   let pQuery =
         case mQuery of
           Nothing -> "`null`" :: Text
           Just q -> mconcat ["`", q, "`"]
   main_ $ do
-    planNavbar $ do
+    planNavbar mSessionData planId $ do
       span_ [class_ "navbar-text"] $ do
         time_ [datetime_ (T.pack . iso8601Show $ createdAt)] $ do
           "Plan Created At "
@@ -37,14 +40,14 @@ page pSource mQuery createdAt = do
     script_ [src_ "/static/pev2/js/app.js"] ("" :: Text)
     script_ [src_ "/static/pev2/js/chunk-vendors.js"] ("" :: Text)
 
-planNotFound :: Html ()
-planNotFound = do
+planNotFound :: Maybe UserSessionData -> PlanID -> Html ()
+planNotFound mSessionData planId = do
   main_ [class_ "container mt-2"] $ do
-    planNavbar mempty
+    planNavbar mSessionData planId mempty
     div_ [class_ "alert alert-danger", role_ "alert"] "Plan Not Found"
 
-planNavbar :: Html () -> Html ()
-planNavbar titleContent = do
+planNavbar :: Maybe UserSessionData -> PlanID -> Html () -> Html ()
+planNavbar mSessionData planId titleContent = do
   -- ref: https://getbootstrap.com/docs/4.6/components/navbar/
   nav_ [class_ "navbar navbar-expand-lg navbar-light bg-light justify-content-between"] $ do
     a_ [class_ "navbar-brand", href_ "/"] "PG Explain Visualizer"
@@ -52,3 +55,12 @@ planNavbar titleContent = do
     ul_ [class_ "navbar-nav"] $ do
       li_ [class_ "nav-item active"] $ do
         a_ [class_ "btn btn-primary", href_ "/"] "New Plan"
+      sessionButtons mSessionData planId
+
+sessionButtons :: Maybe UserSessionData -> PlanID -> Html ()
+sessionButtons Nothing planId = do
+  li_ [class_ "nav-item"] $ do
+    a_ [class_ "btn", href_ $ "/oauth/github?return_to=/plan/" <> (toText . getPlanId $ planId)] "Sign in with Github"
+sessionButtons (Just _) _= do
+  li_ [class_ "nav-item"] $ do
+    a_ [class_ "btn", href_ "/plans"] "My Plans"

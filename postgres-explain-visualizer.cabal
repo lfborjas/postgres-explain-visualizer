@@ -57,6 +57,7 @@ library
       PostgresExplainVisualizer.Environment
       PostgresExplainVisualizer.Server
       PostgresExplainVisualizer.Server.Pages
+      PostgresExplainVisualizer.Server.Types
       PostgresExplainVisualizer.Types
       PostgresExplainVisualizer.Models.Common
       PostgresExplainVisualizer.Models.Plan

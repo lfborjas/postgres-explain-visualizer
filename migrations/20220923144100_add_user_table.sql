@@ -13,3 +13,5 @@ drop trigger if exists user_account_update on user_account;
 ALTER TABLE plan
   ADD CONSTRAINT plan_pkey PRIMARY KEY (id),
   ADD COLUMN user_id uuid NULL REFERENCES user_account(id);
+
+CREATE INDEX IF NOT EXISTS user_id_idx ON plan(user_id);

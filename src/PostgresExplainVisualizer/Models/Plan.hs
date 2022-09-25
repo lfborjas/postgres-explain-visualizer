@@ -31,7 +31,7 @@ import Opaleye (
   tableField,
   toFields,
   where_,
-  (.===), maybeToNullable, Update (uUpdateWith), SqlBool, (.&&), in_, toFieldsI
+  (.===), maybeToNullable, Update (uUpdateWith), SqlBool, (.&&), in_
  )
 import PostgresExplainVisualizer.Database.Orphanage ()
 import PostgresExplainVisualizer.Models.Common (

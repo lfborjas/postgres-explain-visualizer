@@ -5,7 +5,7 @@
 module PostgresExplainVisualizer.Server.Pages where
 
 import Control.Carrier.Error.Either (throwError)
-import Data.Maybe (listToMaybe)
+import Data.Maybe (listToMaybe, fromMaybe)
 import Data.Text (Text, pack)
 import Data.Text.Encoding (encodeUtf8)
 import Lucid (Html, renderBS)
@@ -58,14 +58,15 @@ import PostgresExplainVisualizer.Effects.Http
 import PostgresExplainVisualizer.Effects.Log
     ( log, LogLevel(Error, Debug) )
 import Prelude hiding (log)
-import Servant.Auth.Server ( ToJWT, FromJWT, Auth, SetCookie)
-import Data.Aeson (ToJSON, FromJSON)
+import Servant.Auth.Server ( Auth, SetCookie)
 import Servant.Auth.Server qualified as Auth
 import PostgresExplainVisualizer.Effects.Crypto qualified as Crypto
 import qualified PostgresExplainVisualizer.Client.Github.Api as GH
 import PostgresExplainVisualizer.Models.Common (unsafeNonEmptyText, NonEmptyText)
 import PostgresExplainVisualizer.Models.User (UserID, userByGithubUsername, newUser)
 import Control.Monad (void)
+import PostgresExplainVisualizer.Server.Types
+import Control.Applicative ((<|>))
 
 type Routes = ToServantApi Routes'
 type Get302 (cts :: [Type]) (hs :: [Type]) a = Verb 'GET 302 cts (Headers (Header "Location" Text ': hs) a)
@@ -110,36 +111,6 @@ data PlanRequest = PlanRequest
   , queryParam :: Maybe NonEmptyText
   }
 
-data UserSessionData = UserSessionData
-  { username :: Text
-  , currentUserId :: UserID
-  } deriving (Eq, Show, Read, Generic)
-
-instance ToJSON UserSessionData
-instance ToJWT UserSessionData
-instance FromJSON UserSessionData
-instance FromJWT UserSessionData
-
-data AnonymousData = AnonymousData
-  { unclaimedPlans :: [PlanID]
-  , oAuthNegotiationState :: Maybe OAuthState
-  } deriving (Eq, Show, Read, Generic)
-
-instance ToJSON AnonymousData
-instance ToJWT AnonymousData
-instance FromJSON AnonymousData
-instance FromJWT AnonymousData
-
-data Session
-  = Authenticated UserSessionData
-  | Anonymous AnonymousData
-  deriving (Eq, Show, Read, Generic)
-
-instance ToJSON Session
-instance ToJWT Session
-instance FromJSON Session
-instance FromJWT Session
-
 -- cf:
 -- https://stackoverflow.com/a/39819730
 -- https://hackage.haskell.org/package/http-api-data-0.4.1.1/docs/Web-Internal-FormUrlEncoded.html#t:FromForm
@@ -163,7 +134,7 @@ server =
           { login = loginHandler authResult
           , githubCallback = githubCallbackHandler authResult
           , createPlan = createPlanHandler authResult
-          , showPlan = showPlanHandler
+          , showPlan = showPlanHandler authResult
           }
       , routesWithoutSession = genericServerT $ RoutesWithoutSession
           {home = homeHandler
@@ -176,12 +147,11 @@ loginHandler ::
   Maybe Text ->
   m (Headers '[Header "Location" Text, Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent)
 loginHandler (Auth.Authenticated session@(Authenticated _)) _ = do
-  log Debug $ "Already authed, get outta here!" <> pack (show session)
   applySessionAndRedirect session "/"
 loginHandler authResult returnTo = do
   AppContext{ctxGithubOAuthCredentials, ctxCookieSettings , ctxJwtSettings} <- ask
   oAuthState <- OAuthState <$> Crypto.randomUUID
-  let loginUrl = mkIdentityUrl ctxGithubOAuthCredentials oAuthState returnTo
+  let loginUrl = mkIdentityUrl ctxGithubOAuthCredentials oAuthState
       modifiedCookieSettings = ctxCookieSettings{Auth.cookieSameSite = Auth.AnySite}
       anonSession = updateExistingAnonSession authResult oAuthState
   mApplyCookies <- Crypto.acceptLogin modifiedCookieSettings ctxJwtSettings anonSession
@@ -190,22 +160,10 @@ loginHandler authResult returnTo = do
     Just applyCookies -> pure $ addHeader loginUrl $ applyCookies NoContent
   where
     updateExistingAnonSession authResult' oAuth = case authResult' of
-      Auth.Authenticated (Anonymous (AnonymousData existingPlans _)) ->
-        Anonymous (AnonymousData existingPlans (Just oAuth))
+      Auth.Authenticated (Anonymous (AnonymousData existingPlans _ existingReturnTo)) ->
+        Anonymous (AnonymousData existingPlans (Just oAuth) (existingReturnTo <|> returnTo))
       _ ->
-        Anonymous (AnonymousData [] (Just oAuth))
-
-applySessionAndRedirect ::
-  AppM sig m =>
-  Session ->
-  Text ->
-  m (Headers '[Header "Location" Text, Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent)
-applySessionAndRedirect session redirectTo = do
-  AppContext{ctxJwtSettings,ctxCookieSettings} <- ask
-  mApplyCookies <- Crypto.acceptLogin ctxCookieSettings ctxJwtSettings session
-  case mApplyCookies of
-    Nothing -> throwError err401
-    Just applyCookies -> pure $ addHeader redirectTo $ applyCookies NoContent
+        Anonymous (AnonymousData [] (Just oAuth) returnTo)
 
 githubCallbackHandler ::
   AppM sig m =>
@@ -215,7 +173,7 @@ githubCallbackHandler ::
   m (Headers '[Header "Location" Text, Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent)
 githubCallbackHandler (Auth.Authenticated session@(Authenticated UserSessionData{})) _ _  = do
   applySessionAndRedirect session "/"
-githubCallbackHandler (Auth.Authenticated (Anonymous AnonymousData{oAuthNegotiationState, unclaimedPlans})) oAuthCode oAuthState = do
+githubCallbackHandler (Auth.Authenticated (Anonymous AnonymousData{oAuthNegotiationState, unclaimedPlans, returnToAfterLogin})) oAuthCode oAuthState = do
   AppContext{ctxGithubOAuthCredentials,ctxJwtSettings,ctxCookieSettings} <- ask
   if not $ stateMatches oAuthNegotiationState oAuthState
     then throwError $ err500{errBody = "Invalid OAuth State"}
@@ -239,7 +197,7 @@ githubCallbackHandler (Auth.Authenticated (Anonymous AnonymousData{oAuthNegotiat
                 Nothing -> throwError err401
                 Just applyCookies -> do
                   void $ update $ claimPlans userId unclaimedPlans
-                  pure $ addHeader "/" $ applyCookies NoContent
+                  pure $ addHeader (fromMaybe "/" returnToAfterLogin) $ applyCookies NoContent
   where
     stateMatches Nothing _ = False
     stateMatches (Just state) otherState = state == otherState
@@ -268,39 +226,28 @@ createPlanHandler ::
   PlanRequest ->
   m (Headers '[Header "Location" Text, Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent)
 createPlanHandler authResult PlanRequest{planParam, queryParam} = do
-  let currentUserId = getCurrentUserId authResult
-  createdPlan <- insert $ newPlan planParam queryParam currentUserId
+  let currentUserData = getCurrentUserData authResult
+  createdPlan <- insert $ newPlan planParam queryParam (currentUserId <$> currentUserData)
   case listToMaybe createdPlan of
     Nothing -> throwError $ err500{errBody = "Unable to store plan, sorry!"}
     Just (createdId, _, _) -> do
       newSession <- updateUnclaimedPlans authResult createdId
       applySessionAndRedirect newSession $ "/plan/" <> (pack . show $ createdId)
 
-updateUnclaimedPlans :: AppM sig m => Auth.AuthResult Session -> PlanID -> m Session
-updateUnclaimedPlans authResult planId = case authResult of
-  Auth.Authenticated session@(Authenticated _) -> pure session
-  Auth.Authenticated (Anonymous AnonymousData{unclaimedPlans}) ->
-    pure $ Anonymous $ AnonymousData (planId : unclaimedPlans) Nothing
-  _ -> pure defaultAnonymous
-  where
-    defaultAnonymous = Anonymous AnonymousData{unclaimedPlans = [planId], oAuthNegotiationState = Nothing}
-
-getCurrentUserId :: Auth.AuthResult Session -> Maybe UserID
-getCurrentUserId = \case
-  Auth.Authenticated (Authenticated UserSessionData{currentUserId}) -> Just currentUserId
-  Auth.Authenticated _ -> Nothing
-  _ -> Nothing
-
 showPlanHandler ::
   AppM sig m =>
+  Auth.AuthResult Session ->
   PlanID ->
   m (Html ())
-showPlanHandler pid = do
+showPlanHandler authResult pid = do
+  let mSessionData = getCurrentUserData authResult
   plan <- select $ planByID pid
   case listToMaybe plan of
-    Nothing -> throwError $ htmlError err404 PEV2.planNotFound
+    Nothing -> throwError $ htmlError err404 $ PEV2.planNotFound mSessionData pid
     Just (_, pSource, pQuery, createdAt) ->
-      renderView $ PEV2.page pSource pQuery createdAt
+      renderView $ PEV2.page mSessionData pid pSource pQuery createdAt
+
+-- HELPERS
 
 renderView :: AppM sig m => Html () -> m (Html ())
 renderView = pure . Layout.layout
@@ -312,3 +259,30 @@ redirect loc = do
 htmlError :: ServerError -> Html () -> ServerError
 htmlError err content =
   err{errBody = renderBS (Layout.layout content), errHeaders = [("Content-Type", "text/html")]}
+
+applySessionAndRedirect ::
+  AppM sig m =>
+  Session ->
+  Text ->
+  m (Headers '[Header "Location" Text, Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent)
+applySessionAndRedirect session redirectTo = do
+  AppContext{ctxJwtSettings,ctxCookieSettings} <- ask
+  mApplyCookies <- Crypto.acceptLogin ctxCookieSettings ctxJwtSettings session
+  case mApplyCookies of
+    Nothing -> throwError err401
+    Just applyCookies -> pure $ addHeader redirectTo $ applyCookies NoContent
+
+updateUnclaimedPlans :: AppM sig m => Auth.AuthResult Session -> PlanID -> m Session
+updateUnclaimedPlans authResult planId = case authResult of
+  Auth.Authenticated session@(Authenticated _) -> pure session
+  Auth.Authenticated (Anonymous AnonymousData{unclaimedPlans, returnToAfterLogin}) ->
+    pure $ Anonymous $ AnonymousData (planId : unclaimedPlans) Nothing returnToAfterLogin
+  _ -> pure defaultAnonymous
+  where
+    defaultAnonymous = Anonymous AnonymousData{unclaimedPlans = [planId], oAuthNegotiationState = Nothing, returnToAfterLogin = Nothing}
+
+getCurrentUserData :: Auth.AuthResult Session -> Maybe UserSessionData
+getCurrentUserData = \case
+  Auth.Authenticated (Authenticated userData) -> Just userData
+  Auth.Authenticated _ -> Nothing
+  _ -> Nothing

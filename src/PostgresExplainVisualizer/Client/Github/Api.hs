@@ -112,8 +112,8 @@ githubOAuthScopes = "read:user" :| ["read:org"]
 
 -- | Construct a URL to redirect to to initiate GH authentication
 -- https://docs.github.com/en/developers/apps/building-oauth-apps/authorizing-oauth-apps#1-request-a-users-github-identity
-mkIdentityUrl :: GithubOAuthCredentials -> OAuthState -> Maybe Text -> Text
-mkIdentityUrl GithubOAuthCredentials {clientId} state returnTo =
+mkIdentityUrl :: GithubOAuthCredentials -> OAuthState -> Text
+mkIdentityUrl GithubOAuthCredentials {clientId} state =
   mconcat
     [ "https://github.com/login/oauth/authorize"
     , "?client_id="
@@ -122,7 +122,6 @@ mkIdentityUrl GithubOAuthCredentials {clientId} state returnTo =
     , intercalate "%20" $ unScope <$> toList githubOAuthScopes
     , "&state="
     , toText . unOAuthState $ state
-    , maybe "" ("&redirect_uri=" <>) returnTo
     ]
 
 -- API algebra

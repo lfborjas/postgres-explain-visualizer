@@ -23,3 +23,4 @@ type AppM sig m =
   , Has Log sig m
   , Has Crypto sig m
   )
+

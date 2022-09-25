@@ -22,7 +22,7 @@
 ** TODO "Claim" flow
 - [X] If a user is authenticated already, just assign them the plan upon creation
 - [X] If user isn't authenticated: maybe store unclaimed plans in session so we just update all of them upon login and then redirect to "my plans"??
-- [ ] Add "login" button to show plan view, or "my plans"
+- [X] Add "login" button to the show plan view, or "my plans"
 ** TODO Optional "my plans" view
 - [ ] New page: list plans with maybe a nice lil code block?
 ** TODO Share with members of my org
