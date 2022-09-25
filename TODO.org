@@ -1,6 +1,6 @@
 #+TITLE: Todo
 
-* <2022-09-22 Thu>
+* <2022-09-22 Thu> - <2022-09-25 Sun>
 ** TODO Basic OAuth Flow
 - [X] Redirect to GH for auth
 - [X] Redirect back to the app
@@ -13,7 +13,7 @@
 ** TODO API interaction (needs more deps)
 - [X] Store OAuth tokenin session? -- not doing it rn: don't need it
 - [X] Get user info
-- [ ] Get user's orgs
+- [X] Get user's orgs (not super useful: private orgs won't show up unless they themselves allow it)
 ** TODO User Persistence
 - [X] Create user table
 - [X] Store user ID in session

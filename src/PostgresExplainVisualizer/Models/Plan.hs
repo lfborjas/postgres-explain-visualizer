@@ -148,6 +148,12 @@ planByID pid_ = do
   where_ $ planID record .=== toFields pid_
   pure (planID record, planSource record, planQuery record, recordCreatedAt)
 
+plansByUserID :: UserID -> Select (PlanIDField, Field SqlText, FieldNullable SqlText, Field SqlTimestamptz)
+plansByUserID userId = do
+  Entity{record, recordCreatedAt} <- selectTable planTable
+  where_ $ planUserId record .=== toFields (Just <$> userId)
+  pure (planID record, planSource record, planQuery record, recordCreatedAt)
+
 unclaimedPlansWithIds :: [PlanID] -> PlanField -> Field SqlBool
 unclaimedPlansWithIds planIds Entity{record} =
   isNull (getUserId $ planUserId record) .&& in_ (map (toFields . getPlanId) planIds) (getPlanId $ planID record)

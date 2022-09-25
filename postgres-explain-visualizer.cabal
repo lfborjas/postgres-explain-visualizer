@@ -65,6 +65,7 @@ library
       PostgresExplainVisualizer.Views.Layout
       PostgresExplainVisualizer.Views.PEV2
       PostgresExplainVisualizer.Views.NewPlan
+      PostgresExplainVisualizer.Views.PlanList
     build-depends:
       base >= 4.13 && <= 4.17
       , aeson

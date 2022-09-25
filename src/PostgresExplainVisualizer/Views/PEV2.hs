@@ -60,7 +60,7 @@ planNavbar mSessionData planId titleContent = do
 sessionButtons :: Maybe UserSessionData -> PlanID -> Html ()
 sessionButtons Nothing planId = do
   li_ [class_ "nav-item"] $ do
-    a_ [class_ "btn btn-info", href_ $ "/oauth/github?return_to=/plan/" <> (toText . getPlanId $ planId)] "Sign in with Github"
+    a_ [class_ "btn btn-link", href_ $ "/oauth/github?return_to=/plan/" <> (toText . getPlanId $ planId)] "Sign in with Github"
 sessionButtons (Just _) _= do
   li_ [class_ "nav-item"] $ do
     a_ [class_ "btn btn-light", href_ "/plans"] "My Plans"

@@ -13,7 +13,7 @@ import PostgresExplainVisualizer.Effects.Database (insert, select, update)
 import PostgresExplainVisualizer.Models.Plan (
   PlanID,
   newPlan,
-  planByID, claimPlans
+  planByID, claimPlans, plansByUserID
  )
 import PostgresExplainVisualizer.Types (AppM)
 import PostgresExplainVisualizer.Views.Layout qualified as Layout
@@ -67,6 +67,7 @@ import PostgresExplainVisualizer.Models.User (UserID, userByGithubUsername, newU
 import Control.Monad (void)
 import PostgresExplainVisualizer.Server.Types
 import Control.Applicative ((<|>))
+import qualified PostgresExplainVisualizer.Views.PlanList as PlanList
 
 type Routes = ToServantApi Routes'
 type Get302 (cts :: [Type]) (hs :: [Type]) a = Verb 'GET 302 cts (Headers (Header "Location" Text ': hs) a)
@@ -88,6 +89,9 @@ data RoutesWithSession mode = RoutesWithSession
   , showPlan ::
       mode :- "plan"
         :> Capture "planId" PlanID
+        :> Get '[HTML] (Html ())
+  , listOwnPlans ::
+      mode :- "plans"
         :> Get '[HTML] (Html ())
   , login ::
       mode :- "oauth" :> "github"
@@ -135,11 +139,13 @@ server =
           , githubCallback = githubCallbackHandler authResult
           , createPlan = createPlanHandler authResult
           , showPlan = showPlanHandler authResult
+          , listOwnPlans = listOwnPlansHandler authResult
           }
       , routesWithoutSession = genericServerT $ RoutesWithoutSession
           {home = homeHandler
           }
       }
+
 
 loginHandler ::
   AppM sig m =>
@@ -247,6 +253,16 @@ showPlanHandler authResult pid = do
     Just (_, pSource, pQuery, createdAt) ->
       renderView $ PEV2.page mSessionData pid pSource pQuery createdAt
 
+listOwnPlansHandler ::
+  AppM sig m =>
+  Auth.AuthResult Session ->
+  m (Html ())
+listOwnPlansHandler (Auth.Authenticated (Authenticated UserSessionData {currentUserId})) = do
+  myPlans <- select $ plansByUserID currentUserId
+  let planViews = map (\(i, s, q, created) -> PlanView i s q created) myPlans
+  renderView $ PlanList.page planViews
+
+listOwnPlansHandler _ = redirect "/"
 -- HELPERS
 
 renderView :: AppM sig m => Html () -> m (Html ())

@@ -8,6 +8,7 @@ import Data.Aeson ( ToJSON, FromJSON )
 import Servant.Auth.Server ( FromJWT, ToJWT )
 import PostgresExplainVisualizer.Models.Plan (PlanID)
 import PostgresExplainVisualizer.Client.Github.Api (OAuthState)
+import Data.Time (UTCTime)
 
 data UserSessionData = UserSessionData
   { username :: Text
@@ -39,3 +40,10 @@ instance ToJSON Session
 instance ToJWT Session
 instance FromJSON Session
 instance FromJWT Session
+
+data PlanView = PlanView
+  { id :: PlanID
+  , source :: Text
+  , query :: Maybe Text
+  , createdAt :: UTCTime
+  }
