@@ -16,6 +16,7 @@ module PostgresExplainVisualizer.Client.Github.Api
   ( runGithubApiJSON
   , getAccessToken
   , getUser
+  , getUserOrganizations
   , mkIdentityUrl
   , OAuthCode (..)
   , OAuthState (..)
@@ -32,6 +33,7 @@ import Network.HTTP.Client qualified as HTTP
 import Data.Kind (Type)
 import PostgresExplainVisualizer.Environment (GithubOAuthCredentials (..))
 import Data.Text
+    ( Text, intercalate, splitOn, unpack )
 import Data.List.NonEmpty (NonEmpty(..), toList)
 import GHC.Generics (Generic)
 import Data.Aeson
@@ -43,6 +45,7 @@ import Data.Function ((&))
 import Data.Text.Encoding (encodeUtf8)
 import Web.HttpApiData (FromHttpApiData)
 import Servant.Auth.Server (ToJWT, FromJWT)
+import Prelude
 
 newtype OAuthCode =
   OAuthCode {unOAuthCode :: Text}
@@ -105,8 +108,25 @@ data GithubUser = GithubUser
 instance FromJSON GithubUser where
   parseJSON = genericParseJSON defaultOptions{fieldLabelModifier = camelTo2 '_'}
 
+
+data GithubOrganization = GithubOrganization
+  { organizationLogin :: Text
+  , organizationDescription :: Maybe Text
+  }
+  deriving stock (Show, Generic)
+
+instance FromJSON GithubOrganization where
+  parseJSON = genericParseJSON defaultOptions{fieldLabelModifier = dropPrefix "organization"}
+
+dropPrefix :: String -> String -> String
+dropPrefix p = drop (length $ p <> "_") . camelTo2 '_'
 -- API Helpers
 
+-- | Using @read:user@ gives us access to user profile data only,
+-- And @read:org@ gives us access to org membership info, where orgs allow it:
+-- https://docs.github.com/en/developers/apps/building-oauth-apps/scopes-for-oauth-apps
+-- Note that even when @read:org@ is included, each private org will have to allow access
+-- to data such as membership (public or private!)
 githubOAuthScopes :: NonEmpty OAuthScope
 githubOAuthScopes = "read:user" :| ["read:org"]
 
@@ -130,14 +150,17 @@ data GithubClient (m :: Type -> Type) k where
   -- See:
   GetAccessToken :: GithubOAuthCredentials -> OAuthCode -> GithubClient m OAuthResponse
   -- See: https://docs.github.com/en/rest/users/users#get-the-authenticated-user
-  -- https://docs.github.com/en/rest/orgs/orgs#list-organizations-for-the-authenticated-user
   GetUser :: AccessToken -> GithubClient m GithubUser
+  GetUserOrganizations :: AccessToken -> GithubClient m [GithubOrganization]
 
 getAccessToken :: Has GithubClient sig m => GithubOAuthCredentials -> OAuthCode -> m OAuthResponse
 getAccessToken creds code = send $ GetAccessToken creds code
 
 getUser :: Has GithubClient sig m => AccessToken -> m GithubUser
 getUser = send . GetUser
+
+getUserOrganizations :: Has GithubClient sig m => AccessToken -> m [GithubOrganization]
+getUserOrganizations = send . GetUserOrganizations
 
 newtype GithubApi m a =
   GithubApi { runGithubApi :: m a }
@@ -175,6 +198,12 @@ getUserRequest =
   let endpoint = HTTP.parseRequest_ . unpack $ githubAPIBase <> "/user"
    in endpoint{HTTP.method = "GET"}
 
+getUserOrganizationsRequest :: HTTP.Request
+getUserOrganizationsRequest =
+  let endpoint = HTTP.parseRequest_ . unpack $ githubAPIBase <> "/user/orgs"
+   in endpoint{HTTP.method = "GET"}
+
+
 instance (Has Http sig m, Has (Throw JsonParseError) sig m, Algebra sig m) => Algebra (GithubClient :+: sig) (GithubApi m) where
   alg hdl sig ctx = case sig of
     L (GetAccessToken creds code) -> do
@@ -182,6 +211,9 @@ instance (Has Http sig m, Has (Throw JsonParseError) sig m, Algebra sig m) => Al
       (<$ ctx) <$> decodeOrThrow (HTTP.responseBody resp)
     L (GetUser token) -> do
       resp <- sendRequest $ authenticatedJSONRequest token getUserRequest
+      (<$ ctx) <$> decodeOrThrow (HTTP.responseBody resp)
+    L (GetUserOrganizations token) -> do
+      resp <- sendRequest $ authenticatedJSONRequest token getUserOrganizationsRequest
       (<$ ctx) <$> decodeOrThrow (HTTP.responseBody resp)
     R other -> GithubApi (alg (runGithubApi . hdl) other ctx)
 
