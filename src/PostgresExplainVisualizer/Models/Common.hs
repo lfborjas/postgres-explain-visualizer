@@ -13,9 +13,13 @@ import Opaleye (
   Field,
   SqlTimestamptz,
   TableFields,
-  optionalTableField,
+  optionalTableField, ToFields, Column, SqlText, DefaultFromField (defaultFromField), toToFields, sqlStrictText
  )
 import PostgresExplainVisualizer.Database.Orphanage ()
+import Servant (FromHttpApiData)
+import Data.Profunctor.Product.Default
+import Data.Text (Text, null)
+import Servant.API (FromHttpApiData(parseUrlPiece))
 
 --- ENTITY ABSTRACTION
 --- https://williamyaoh.com/posts/2019-12-28-abstracting-out-common-columns-opaleye.html
@@ -83,3 +87,27 @@ updateRecordWith f e@Entity{record, recordCreatedAt} =
     , recordCreatedAt = Just recordCreatedAt
     , recordUpdatedAt = ()
     }
+
+---------------------------------------------------------------------------------
+newtype NonEmptyText = NonEmptyText Text
+
+mkNonEmptyText :: Text -> Maybe NonEmptyText
+mkNonEmptyText t
+  | Data.Text.null t = Nothing
+  | otherwise = Just . NonEmptyText $ t
+
+unsafeNonEmptyText :: Text -> NonEmptyText
+unsafeNonEmptyText = NonEmptyText
+
+instance DefaultFromField SqlText NonEmptyText where
+  defaultFromField = NonEmptyText <$> defaultFromField
+
+instance Default ToFields NonEmptyText (Column SqlText) where
+  def = toToFields (\(NonEmptyText txt) -> sqlStrictText txt)
+
+instance FromHttpApiData NonEmptyText where
+  parseUrlPiece t = do
+    s <- parseUrlPiece t
+    case mkNonEmptyText s of
+      Nothing -> Left $ "Text cannot be empty " <> t
+      Just parsed -> Right parsed

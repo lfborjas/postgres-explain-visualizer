@@ -47,6 +47,11 @@ palaver = do
     strong_ "will be stored in the backend "
     "so you can have a permalink to share with colleagues or put in documentation. "
   p_ $ do
+    "You can also sign in with Github after creating a plan, "
+    "which will allow you to claim any plans created in the same browser session "
+    "and revisit a list of all your plans."
+    -- NOTE: we also want to enable private plans, and plans shared with members of the user's org
+  p_ $ do
     "There is no public archive, but consider "
     a_ [href_ "https://github.com/lfborjas/postgres-explain-visualizer"] "hosting your own copy "
     "or using either "

@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 -- |
 module PostgresExplainVisualizer.Environment where
 
@@ -17,6 +18,7 @@ import Env (
  )
 import GHC.Generics (Generic)
 import Text.Read (readMaybe)
+import Servant.Auth.Server (JWTSettings, CookieSettings)
 
 data DeployEnv
   = Test
@@ -28,13 +30,35 @@ data Config = Config
   { configPort :: !Word16
   , configDatabaseUrl :: !Text
   , configDeployEnv :: !DeployEnv
+  , configGithubClientId :: !Text
+  , configGithubClientSecret :: !Text
   }
   deriving stock (Eq, Show, Generic)
 
 data AppContext = AppContext
   { ctxPool :: P.Pool PG.Connection
   , ctxPort :: Word16
+  , ctxGithubOAuthCredentials :: GithubOAuthCredentials
+  , ctxJwtSettings :: JWTSettings
+  , ctxCookieSettings :: CookieSettings
   }
+
+data GithubOAuthCredentials = GithubOAuthCredentials
+  { clientId :: !Text
+  , clientSecret :: !Text
+  }
+
+mkAppContext :: P.Pool PG.Connection -> JWTSettings -> CookieSettings -> Config -> AppContext
+mkAppContext pool jwtSettings cookieSettings Config{..} =
+  AppContext
+    { ctxPool = pool
+    , ctxPort = configPort
+    , ctxGithubOAuthCredentials = GithubOAuthCredentials configGithubClientId configGithubClientSecret
+    -- FIXME: I'm sending these around like an idiot because I don't know how to use servant contexts with
+    -- servant generic??
+    , ctxJwtSettings = jwtSettings
+    , ctxCookieSettings = cookieSettings
+    }
 
 getServerConfig :: IO Config
 getServerConfig = do
@@ -46,6 +70,16 @@ parseConfig =
     <$> parsePort
     <*> parseDatabaseUrl
     <*> parseDeployEnv
+    <*> parseGithubClientId
+    <*> parseGithubClientSecret
+
+parseGithubClientSecret :: Parser Error Text
+parseGithubClientSecret =
+  var str "GH_CLIENT_SECRET" (help "Github OAuth Secret")
+
+parseGithubClientId :: Parser Error Text
+parseGithubClientId =
+  var str "GH_CLIENT_ID" (help "Github OAuth App ID")
 
 parsePort :: Parser Error Word16
 parsePort =

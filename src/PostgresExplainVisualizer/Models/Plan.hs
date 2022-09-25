@@ -9,34 +9,29 @@
 -- |
 module PostgresExplainVisualizer.Models.Plan where
 
-import Data.Profunctor.Product.Default (Default (..))
 import Data.Profunctor.Product.TH (makeAdaptorAndInstanceInferrable)
-import Data.Text (Text, null)
+import Data.Text (Text)
 import Data.UUID (UUID)
 import Opaleye (
-  Column,
-  DefaultFromField (..),
   Field,
   FieldNullable,
   Insert (..),
+  Update (..),
   OnConflict (DoNothing),
   Select,
   SqlText,
   SqlTimestamptz,
   SqlUuid,
   Table,
-  ToFields,
   optionalTableField,
   rReturning,
   requiredTableField,
   selectTable,
-  sqlStrictText,
   table,
   tableField,
   toFields,
-  toToFields,
   where_,
-  (.===),
+  (.===), maybeToNullable, Update (uUpdateWith), SqlBool, (.&&), in_
  )
 import PostgresExplainVisualizer.Database.Orphanage ()
 import PostgresExplainVisualizer.Models.Common (
@@ -46,14 +41,18 @@ import PostgresExplainVisualizer.Models.Common (
   EntityWriteField,
   pEntity,
   withTimestamp,
-  withTimestampFields,
+  withTimestampFields, NonEmptyText, updateRecordWith
  )
 import Web.Internal.HttpApiData (FromHttpApiData (..))
+import PostgresExplainVisualizer.Models.User (UserID, UserID' (UserID, getUserId), pUserID)
+import Data.Aeson (ToJSON, FromJSON)
+import Servant.Auth.Server (ToJWT, FromJWT)
+import Opaleye.Column (isNull)
 
 ---------------------------------------------------------------------------------
 
 newtype PlanID' a = PlanID {getPlanId :: a}
-  deriving newtype (Eq, Show)
+  deriving newtype (Eq, Show, Read)
   deriving (Functor)
 
 $(makeAdaptorAndInstanceInferrable "pPlanID" ''PlanID')
@@ -63,34 +62,18 @@ type PlanIDWrite = PlanID' (Maybe (Field SqlUuid))
 type PlanID = PlanID' UUID
 
 deriving via UUID instance (FromHttpApiData PlanID)
-
----------------------------------------------------------------------------------
-newtype NonEmptyText = NonEmptyText Text
-
-mkNonEmptyText :: Text -> Maybe NonEmptyText
-mkNonEmptyText t
-  | Data.Text.null t = Nothing
-  | otherwise = Just . NonEmptyText $ t
-
-instance DefaultFromField SqlText NonEmptyText where
-  defaultFromField = NonEmptyText <$> defaultFromField
-
-instance Default ToFields NonEmptyText (Column SqlText) where
-  def = toToFields (\(NonEmptyText txt) -> sqlStrictText txt)
-
-instance FromHttpApiData NonEmptyText where
-  parseUrlPiece t = do
-    s <- parseUrlPiece t
-    case mkNonEmptyText s of
-      Nothing -> Left $ "Text cannot be empty " <> t
-      Just parsed -> Right parsed
+deriving via UUID instance (ToJSON PlanID)
+deriving via UUID instance (FromJSON PlanID)
+instance ToJWT PlanID
+instance FromJWT PlanID
 
 ---------------------------------------------------------------------------------
 
-data Plan' pid psource pquery = Plan
+data Plan' pid psource pquery puser = Plan
   { planID :: pid
   , planSource :: psource
   , planQuery :: pquery
+  , planUserId :: puser
   }
 
 type Plan =
@@ -99,6 +82,7 @@ type Plan =
         PlanID
         NonEmptyText
         (Maybe NonEmptyText)
+        (Maybe UserID)
     )
 
 type PlanWrite =
@@ -107,6 +91,7 @@ type PlanWrite =
         PlanIDWrite
         (Field SqlText)
         (FieldNullable SqlText)
+        (UserID' (FieldNullable SqlUuid))
     )
 
 type PlanField =
@@ -115,6 +100,7 @@ type PlanField =
         PlanIDField
         (Field SqlText)
         (FieldNullable SqlText)
+        (UserID' (FieldNullable SqlUuid))
     )
 
 $(makeAdaptorAndInstanceInferrable "pPlan" ''Plan')
@@ -132,14 +118,15 @@ planTable =
         { planID = pPlanID (PlanID $ optionalTableField "id")
         , planSource = requiredTableField "source"
         , planQuery = tableField "query"
+        , planUserId = pUserID (UserID $ tableField "user_id")
         }
 
 ---------------------------------------------------------------------------------
 
 -- QUERIES
 
-newPlan :: NonEmptyText -> Maybe NonEmptyText -> Insert [(PlanID, Text, Maybe Text)]
-newPlan source query =
+newPlan :: NonEmptyText -> Maybe NonEmptyText -> Maybe UserID -> Insert [(PlanID, Text, Maybe Text)]
+newPlan source query mUserId =
   Insert
     { iTable = planTable
     , iRows = withTimestamp [row]
@@ -152,9 +139,36 @@ newPlan source query =
       (PlanID Nothing)
       (toFields source)
       (toFields query)
+      -- FIXME: this is literally so stupid
+      (UserID $ maybeToNullable $ toFields . getUserId <$> mUserId)
 
 planByID :: PlanID -> Select (PlanIDField, Field SqlText, FieldNullable SqlText, Field SqlTimestamptz)
 planByID pid_ = do
   Entity{record, recordCreatedAt} <- selectTable planTable
   where_ $ planID record .=== toFields pid_
   pure (planID record, planSource record, planQuery record, recordCreatedAt)
+
+plansByUserID :: UserID -> Select (PlanIDField, Field SqlText, FieldNullable SqlText, Field SqlTimestamptz)
+plansByUserID userId = do
+  Entity{record, recordCreatedAt} <- selectTable planTable
+  where_ $ planUserId record .=== toFields (Just <$> userId)
+  pure (planID record, planSource record, planQuery record, recordCreatedAt)
+
+unclaimedPlansWithIds :: [PlanID] -> PlanField -> Field SqlBool
+unclaimedPlansWithIds planIds Entity{record} =
+  isNull (getUserId $ planUserId record) .&& in_ (map (toFields . getPlanId) planIds) (getPlanId $ planID record)
+
+claimPlans :: UserID -> [PlanID] -> Update [PlanID]
+claimPlans (UserID uid) planIds =
+  Update
+    { uTable = planTable
+    , uUpdateWith = updateRecordWith claimPlan
+    , uWhere = unclaimedPlansWithIds planIds
+    , uReturning = rReturning (\Entity{record} -> planID record)
+    }
+  where
+    claimPlan planEntity =
+      planEntity {
+        planID = Just <$> planID planEntity,
+        planUserId = UserID $ maybeToNullable $ toFields $ Just uid
+      }

@@ -46,19 +46,26 @@ library
     import: common-ghc-options
     exposed-modules: 
       PostgresExplainVisualizer
+      PostgresExplainVisualizer.Client.Github.Api
       PostgresExplainVisualizer.Database.Pool
       PostgresExplainVisualizer.Database.Migrations
       PostgresExplainVisualizer.Database.Orphanage
+      PostgresExplainVisualizer.Effects.Crypto
       PostgresExplainVisualizer.Effects.Database
+      PostgresExplainVisualizer.Effects.Http
+      PostgresExplainVisualizer.Effects.Log
       PostgresExplainVisualizer.Environment
       PostgresExplainVisualizer.Server
       PostgresExplainVisualizer.Server.Pages
+      PostgresExplainVisualizer.Server.Types
       PostgresExplainVisualizer.Types
       PostgresExplainVisualizer.Models.Common
       PostgresExplainVisualizer.Models.Plan
+      PostgresExplainVisualizer.Models.User
       PostgresExplainVisualizer.Views.Layout
       PostgresExplainVisualizer.Views.PEV2
       PostgresExplainVisualizer.Views.NewPlan
+      PostgresExplainVisualizer.Views.PlanList
     build-depends:
       base >= 4.13 && <= 4.17
       , aeson
@@ -92,6 +99,15 @@ library
       -- deranged HTML stuff:
       , lucid
       , servant-lucid
+      -- for oauth integration:
+      , http-client
+      , http-client-tls
+      , http-media
+      , MonadRandom
+      , tls
+      -- for cookie authentication:
+      , servant-auth-server
+      , cookie
 
 
     hs-source-dirs:   src

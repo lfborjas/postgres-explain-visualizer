@@ -19,7 +19,7 @@ import PostgresExplainVisualizer.Database.Pool qualified as DB
 import PostgresExplainVisualizer.Effects.Database (runDatabaseWithConnection)
 import PostgresExplainVisualizer.Environment (
   AppContext (..),
-  Config (configDatabaseUrl, configDeployEnv, configPort),
+  Config (configDatabaseUrl, configDeployEnv, configPort), mkAppContext
  )
 import PostgresExplainVisualizer.Server.Pages qualified as Pages
 import PostgresExplainVisualizer.Types (AppM)
@@ -28,10 +28,15 @@ import Servant (
   ServerError,
   serveDirectoryWebApp,
   throwError,
-  type (:>),
+  type (:>), Context ((:.), EmptyContext)
  )
 import Servant.API.Generic (Generic, GenericMode (type (:-)))
-import Servant.Server.Generic (AsServerT, genericServeT)
+import Servant.Server.Generic (AsServerT, genericServeTWithContext)
+import PostgresExplainVisualizer.Effects.Http (HttpClient(runHttp))
+import PostgresExplainVisualizer.Effects.Log (LogStdoutC(runLogStdout))
+import Servant.Auth.Server (readKey, defaultCookieSettings, cookieXsrfSetting)
+import Servant.Auth.Server.Internal.ConfigTypes (defaultJWTSettings)
+import PostgresExplainVisualizer.Effects.Crypto (CryptoIOC(runCryptoIO))
 
 data Routes route = Routes
   { assets :: route :- "static" :> Raw
@@ -42,6 +47,10 @@ data Routes route = Routes
 run :: Config -> IO ()
 run config = do
   pool <- DB.initPool (configDatabaseUrl config)
+  jwtKey <- readKey "config/JWT.key"
+  let jwtSettings = defaultJWTSettings jwtKey
+      -- see: https://github.com/haskell-servant/servant/tree/bd9e4b10900d04bb5a24bcbb8ab2f7246fcd15c7/servant-auth#xsrf-and-the-frontend
+      cookieSettings = defaultCookieSettings{cookieXsrfSetting = Nothing}
   putStrLn $
     mconcat
       [ "["
@@ -50,12 +59,13 @@ run config = do
       , "Serving on port "
       , show . configPort $ config
       ]
-  let ctx = AppContext pool (configPort config)
+  let ctx = mkAppContext pool jwtSettings cookieSettings config
   runServer ctx
 
 runServer :: AppContext -> IO ()
 runServer ctx = withStdoutLogger $ \logger -> do
-  let server = genericServeT (naturalTransform ctx) pevServer
+  let serverCfg = ctxCookieSettings ctx :. ctxJwtSettings ctx :. EmptyContext
+      server = genericServeTWithContext (naturalTransform ctx) pevServer serverCfg
       warpSettings =
         defaultSettings
           & setPort (fromIntegral $ ctxPort ctx)
@@ -71,6 +81,9 @@ runServer ctx = withStdoutLogger $ \logger -> do
         & runError @ServerError
         & runReader cfg
         & runDatabaseWithConnection conn
+        & runHttp
+        & runLogStdout
+        & runCryptoIO
         & runM
 
 pevServer :: AppM sig m => Routes (AsServerT m)

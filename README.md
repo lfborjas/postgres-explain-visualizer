@@ -6,6 +6,17 @@ pev2, with a backend
 
 There's a `shell.nix`, enter a `nix-shell` or put `use nix` in an `.envrc` file to develop.
 
+#### Generating a new JWT key
+
+Easiest way: enter a repl (`cabal repl`, within a `nix-shell`,) and run:
+
+``` haskell
+> import Servant.Auth.Server (writeKey)
+> writeKey "config/JWT.key"
+```
+
+That file is not tracked in git, but it is copied over upon deploy (!)
+
 ## Deployment
 
 See the `heroku.yml` github action; you can set a repository secret on your own fork to deploy to your own Heroku instance. You'll need Postgres provisioned.
@@ -31,3 +42,4 @@ All migrations ran.
 ```
 
 If you deploy your fork to Heroku, you can do the same, or update the code or docker derivation to run them, maybe?
+

@@ -1,0 +1,34 @@
+#+TITLE: Todo
+
+* <2022-09-22 Thu> - <2022-09-25 Sun>
+** TODO Basic OAuth Flow
+- [X] Redirect to GH for auth
+- [X] Redirect back to the app
+- [X] Parse response
+- [X] Set and store the state in a separate cookie?
+** TODO session management (needs more deps)
+- [X] Use some manner of servant auth for an encrypted cookie:
+  https://www.stackbuilders.com/blog/servant-auth/
+- [X] Able to pull out the github data from the cookie
+** TODO API interaction (needs more deps)
+- [X] Store OAuth tokenin session? -- not doing it rn: don't need it
+- [X] Get user info
+- [X] Get user's orgs (not super useful: private orgs won't show up unless they themselves allow it)
+** TODO User Persistence
+- [X] Create user table
+- [X] Store user ID in session
+- [X] Upon oauth redirect: get user info, and upsert user data based on GH username.
+- [X] Ability to set session cookie containing auth token
+** TODO "Claim" flow
+- [X] If a user is authenticated already, just assign them the plan upon creation
+- [X] If user isn't authenticated: maybe store unclaimed plans in session so we just update all of them upon login and then redirect to "my plans"??
+- [X] Add "login" button to the show plan view, or "my plans"
+** TODO Optional "my plans" view
+- [ ] New page: list plans with maybe a nice lil code block?
+** TODO Share with members of my org
+- [ ] "share this plan" form: set as public, private, shared with org
+- [ ] Authz to see plans
+** TODO Deploy
+- [ ] Create "production" github app
+- [ ] Lil security audit
+- [ ] Ensure deployment actually copies over JWT key
